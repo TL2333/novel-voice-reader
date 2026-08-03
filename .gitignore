@@ -1,0 +1,15 @@
+.gradle/
+.idea/
+.kotlin/
+.codex/vendor/
+.local-models/
+.local-downloads/
+.local-signing/
+local.properties
+**/build/
+dist/*.apk
+*.jks
+*.keystore
+captures/
+externalNativeBuild/
+
