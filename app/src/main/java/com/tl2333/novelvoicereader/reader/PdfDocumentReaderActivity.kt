@@ -106,6 +106,18 @@ class PdfDocumentReaderActivity : ComponentActivity() {
                                 )
                             }
                         },
+                        onSpeedSelected = { speed ->
+                            session.setPlaybackSpeed(speed)
+                            lifecycleScope.launch(Dispatchers.IO) {
+                                container.preferences.updateNarration(
+                                    preferences.defaultVoiceSid,
+                                    speed,
+                                    preferences.narrationStyle,
+                                    preferences.automaticStyle,
+                                    preferences.automaticFollow,
+                                )
+                            }
+                        },
                         onBack = ::finish,
                     )
                 }
@@ -153,6 +165,7 @@ private fun PdfDocumentReader(
     preferences: ReaderTtsPreferences,
     onPageSelected: (Int) -> Unit,
     onBookmark: (Int) -> Unit,
+    onSpeedSelected: (Float) -> Unit,
     onBack: () -> Unit,
 ) {
     val state by session.state.collectAsState()
@@ -182,13 +195,17 @@ private fun PdfDocumentReader(
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Button(onClick = { document.blocks.firstOrNull { it.anchor.page == selectedPage }?.id?.let(session::startAtBlock) }) { Text("从本页朗读") }
                     Button(onClick = { onBookmark(selectedPage) }) { Text("书签") }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Button(onClick = session::previous) { Text("上一句") }
                     Button(onClick = session::pauseOrResume, enabled = state.narration.state in setOf(NarrationState.PLAYING, NarrationState.PAUSED, NarrationState.BUFFERING)) {
                         Text(if (state.narration.state == NarrationState.PAUSED) "继续" else "暂停")
                     }
+                    Button(onClick = session::next) { Text("下一句") }
                     Button(onClick = session::stop) { Text("停止") }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf(1f, 1.5f, 2f).forEach { speed -> Button(onClick = { session.setPlaybackSpeed(speed) }) { Text("${speed}x") } }
+                    listOf(1f, 1.5f, 2f).forEach { speed -> Button(onClick = { onSpeedSelected(speed) }) { Text("${speed}x") } }
                 }
             }
         },

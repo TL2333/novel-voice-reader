@@ -107,6 +107,18 @@ class GenericDocumentReaderActivity : ComponentActivity() {
                                 )
                             }
                         },
+                        onSpeedSelected = { speed ->
+                            session.setPlaybackSpeed(speed)
+                            lifecycleScope.launch(Dispatchers.IO) {
+                                container.preferences.updateNarration(
+                                    preferences.defaultVoiceSid,
+                                    speed,
+                                    preferences.narrationStyle,
+                                    preferences.automaticStyle,
+                                    preferences.automaticFollow,
+                                )
+                            }
+                        },
                         onBack = ::finish,
                     )
                 }
@@ -158,6 +170,7 @@ private fun GenericDocumentReader(
     initialBlockId: String?,
     onBlockSelected: (String) -> Unit,
     onBookmark: (String) -> Unit,
+    onSpeedSelected: (Float) -> Unit,
     onBack: () -> Unit,
 ) {
     val state by session.state.collectAsState()
@@ -189,14 +202,18 @@ private fun GenericDocumentReader(
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Button(onClick = { selectedBlockId?.let(session::startAtBlock) }) { Text("从此处朗读") }
                     Button(onClick = { selectedBlockId?.let(onBookmark) }) { Text("书签") }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Button(onClick = session::previous) { Text("上一句") }
                     Button(onClick = session::pauseOrResume, enabled = state.narration.state in setOf(NarrationState.PLAYING, NarrationState.PAUSED, NarrationState.BUFFERING)) {
                         Text(if (state.narration.state == NarrationState.PAUSED) "继续" else "暂停")
                     }
+                    Button(onClick = session::next) { Text("下一句") }
                     Button(onClick = session::stop) { Text("停止") }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     listOf(1f, 1.5f, 2f).forEach { speed ->
-                        Button(onClick = { session.setPlaybackSpeed(speed) }) { Text("${speed}x") }
+                        Button(onClick = { onSpeedSelected(speed) }) { Text("${speed}x") }
                     }
                 }
             }

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Strict static acceptance checks for the offline arm64 debug APK."""
+"""Strict static acceptance checks for the local-AI arm64 debug APK."""
 
 from __future__ import annotations
 
@@ -21,12 +21,12 @@ EXPECTED = {
 }
 MODEL_SHA256 = "bda15858163726a492d02a9a727bc263551b86ac77f90812c4b30ff41d380e26"
 FORBIDDEN_PERMISSIONS = {
-    "android.permission.INTERNET",
     "android.permission.ACCESS_NETWORK_STATE",
     "android.permission.READ_EXTERNAL_STORAGE",
     "android.permission.WRITE_EXTERNAL_STORAGE",
     "android.permission.MANAGE_EXTERNAL_STORAGE",
 }
+REQUIRED_PERMISSIONS = {"android.permission.INTERNET"}
 FORBIDDEN_ABIS = {"armeabi-v7a", "x86", "x86_64"}
 FORBIDDEN_NAME_PARTS = ("local.properties", ".jks", ".keystore", "keystore.properties")
 FORBIDDEN_PAYLOAD_MARKERS = (
@@ -131,6 +131,9 @@ def verify(apk: pathlib.Path, sdk_root: pathlib.Path, report: pathlib.Path) -> N
     for permission in FORBIDDEN_PERMISSIONS:
         if permission in permissions:
             raise AssertionError(f"Forbidden permission declared: {permission}")
+    for permission in REQUIRED_PERMISSIONS:
+        if permission not in permissions:
+            raise AssertionError(f"Required permission is missing: {permission}")
 
     lines: list[str] = []
     with zipfile.ZipFile(apk) as archive:
@@ -171,6 +174,8 @@ def verify(apk: pathlib.Path, sdk_root: pathlib.Path, report: pathlib.Path) -> N
         find_suffix(names, "assets/kokoro/date-zh.fst")
         find_suffix(names, "assets/kokoro/number-zh.fst")
         find_suffix(names, "assets/kokoro/models-manifest.json")
+        find_suffix(names, "assets/mlkit-google-ocr-models/gocr/gocr_models/line_recognition_legacy_mobile/Hani_ctc_cpu.binarypb")
+        find_suffix(names, "assets/mlkit-google-ocr-models/gocr/gocr_models/line_recognition_legacy_mobile/Latn_ctc_cpu.binarypb")
         find_suffix(names, "assets/testbooks/storyvoice-test.epub")
         packaged_epubs = sorted(name for name in names if name.lower().endswith(".epub"))
         if packaged_epubs != ["assets/testbooks/storyvoice-test.epub"]:
@@ -200,8 +205,8 @@ def verify(apk: pathlib.Path, sdk_root: pathlib.Path, report: pathlib.Path) -> N
         f"Metadata: {actual}\n"
         f"Native ABIs: {sorted(native_abis)}\n"
         f"Required native libraries: {sorted(required_native_names)}\n"
-        "Forbidden permissions: absent\n"
-        "Required Kokoro assets and deterministic test EPUB: verified\n"
+        "Network boundary permissions: INTERNET present; forbidden storage and network-state permissions absent\n"
+        "Required Kokoro assets, bundled Chinese/Latin OCR models, and deterministic test EPUB: verified\n"
         f"Packaged model SHA256: {MODEL_SHA256}\n"
         f"apksigner: {signing_output.strip()}\n"
         f"zipalign: {alignment_output.strip() or 'verified'}\n"

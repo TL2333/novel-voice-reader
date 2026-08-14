@@ -228,6 +228,20 @@ class CanonicalNarrationSession(
         start(segments.indexOfFirst { it.blockId == blockId }.takeIf { it >= 0 } ?: 0)
     }
 
+    fun next() {
+        val current = segments.indexOfFirst { it.id == _state.value.currentSegment?.id }
+            .takeIf { it >= 0 } ?: controller.snapshot.segmentIndex
+        controller.send(NarrationIntent.Next)
+        start((current + 1).coerceAtMost(segments.lastIndex))
+    }
+
+    fun previous() {
+        val current = segments.indexOfFirst { it.id == _state.value.currentSegment?.id }
+            .takeIf { it >= 0 } ?: controller.snapshot.segmentIndex
+        controller.send(NarrationIntent.Previous)
+        start((current - 1).coerceAtLeast(0))
+    }
+
     fun pauseOrResume() {
         if (controller.snapshot.state == NarrationState.PAUSED) controller.send(NarrationIntent.Resume)
         else controller.send(NarrationIntent.Pause)
