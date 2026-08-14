@@ -200,7 +200,7 @@ class TtsAudioCache(
     }
 }
 
-private fun readMonoPcm16Wav(file: File): CachedPcm16Audio {
+internal fun readMonoPcm16Wav(file: File): CachedPcm16Audio {
     RandomAccessFile(file, "r").use { input ->
         if (input.length() < 44L || input.readAscii(4) != "RIFF") throw IOException("Invalid RIFF header")
         input.readLittleEndianInt() // RIFF payload size

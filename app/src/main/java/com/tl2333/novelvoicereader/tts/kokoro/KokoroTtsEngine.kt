@@ -6,8 +6,6 @@ import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioTrack
-import com.k2fsa.sherpa.onnx.GenerationConfig
-import com.k2fsa.sherpa.onnx.OfflineTts
 import com.tl2333.novelvoicereader.BuildConfig
 import com.tl2333.novelvoicereader.tts.cache.TtsAudioCache
 import com.tl2333.novelvoicereader.tts.cache.TtsCacheKey
@@ -101,12 +99,12 @@ data class KokoroDiagnosticAudio(
 /**
  * sherpa-onnx-backed Readium engine.
  *
- * The single worker owns [offlineTts], every native inference call, playback, and release. Native
- * generation is deliberately callback-free. Cancellation stops playback immediately and marks the
- * in-flight request so a native result is discarded as soon as the current short sentence returns.
+ * The single worker owns playback and delegates callback-free native inference to the isolated
+ * TTS-process [synthesisBackend]. Cancellation marks the in-flight request so a returned artifact
+ * can be discarded without corrupting the playback queue.
  */
 class KokoroTtsEngine internal constructor(
-    private val offlineTts: OfflineTts,
+    private val synthesisBackend: KokoroSynthesisBackend,
     private val settingsResolver: KokoroTtsSettingsResolver,
     initialPreferences: KokoroTtsPreferences,
     val runtimeModel: KokoroRuntimeModel,
@@ -591,14 +589,13 @@ class KokoroTtsEngine internal constructor(
             )
         }
 
-        val startedAt = System.nanoTime()
         val generated = try {
-            offlineTts.generateWithConfig(
-                text = text,
-                config = GenerationConfig(
+            synthesisBackend.generate(
+                text,
+                KokoroGenerationRequest(
                     silenceScale = (DEFAULT_SILENCE_SCALE * parameters.pauseMultiplier).coerceAtLeast(0f),
-                    speed = parameters.styleSpeed.coerceIn(0.85f, 1.15f),
-                    sid = parameters.sid,
+                    synthesisProfileSpeed = parameters.styleSpeed.coerceIn(0.85f, 1.15f),
+                    voiceSid = parameters.sid,
                 ),
             )
         } catch (error: Throwable) {
@@ -608,14 +605,14 @@ class KokoroTtsEngine internal constructor(
                 SynthesisOutcome.Failure(mapSynthesisThrowable(error))
             }
         }
-        val synthesisDurationMillis = nanosToMillis(System.nanoTime() - startedAt)
+        val synthesisDurationMillis = generated.generationDurationMs
         if (!isCurrent(epoch) { !cancelled.get() && stillWanted() }) {
             return SynthesisOutcome.Cancelled
         }
         if (generated.samples.isEmpty() || generated.sampleRate <= 0) {
             return SynthesisOutcome.Failure(emptyGeneratedAudioError())
         }
-        val samples = WavWriter.floatToPcm16(generated.samples, parameters.gain)
+        val samples = applyGain(generated.samples, parameters.gain)
         if (samples.isEmpty()) return SynthesisOutcome.Failure(emptyGeneratedAudioError())
         return SynthesisOutcome.Success(
             samples = samples,
@@ -863,7 +860,7 @@ class KokoroTtsEngine internal constructor(
     private fun releaseOwnedResources() {
         releaseTrack(activeAudioTrack)
         try {
-            runCatching { offlineTts.release() }
+            runCatching { synthesisBackend.release() }
         } finally {
             _engineState.value = KokoroEngineState.RELEASED
             runCatching(onReleased)
@@ -896,6 +893,13 @@ class KokoroTtsEngine internal constructor(
                 error,
             )
         }
+
+    private fun applyGain(samples: ShortArray, gain: Float): ShortArray {
+        if (gain == 1f) return samples
+        return ShortArray(samples.size) { index ->
+            (samples[index] * gain).toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
+        }
+    }
 
     private fun stylePlan(text: String, style: NarrationStyle, automatic: Boolean) =
         if (automatic) {

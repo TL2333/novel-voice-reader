@@ -6,8 +6,8 @@ import android.content.Context
 import android.os.SystemClock
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
-import com.k2fsa.sherpa.onnx.OfflineTts
 import com.tl2333.novelvoicereader.tts.cache.TtsAudioCache
+import com.tl2333.novelvoicereader.tts.client.TtsInferenceClient
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CancellationException
@@ -87,18 +87,17 @@ class KokoroTtsEngineProvider(
         audioCache: TtsAudioCache?,
     ): Try<KokoroTtsEngine, Error> = withContext(Dispatchers.IO) {
         val startedAt = SystemClock.elapsedRealtimeNanos()
-        var offlineTts: OfflineTts? = null
+        var synthesisBackend: KokoroSynthesisBackend? = null
         val nativeLeaseHeld = AtomicBoolean(false)
         try {
             nativeSessionMutex.lock()
             nativeLeaseHeld.set(true)
             val runtimeModel = modelLocator.prepareRuntimeData()
-            val config = KokoroConfigFactory.create(runtimeModel.espeakDataDirectory)
-            val createdTts = OfflineTts(applicationContext.assets, config)
-            offlineTts = createdTts
+            val createdBackend = TtsInferenceClient.connect(applicationContext)
+            synthesisBackend = createdBackend
 
-            val sampleRate = createdTts.sampleRate()
-            val speakerCount = createdTts.numSpeakers()
+            val sampleRate = createdBackend.sampleRate
+            val speakerCount = createdBackend.speakerCount
             check(sampleRate > 0) { "sherpa-onnx returned invalid sample rate $sampleRate" }
             check(speakerCount > KokoroVoiceCatalog.voices.last().sid) {
                 "Kokoro model exposes $speakerCount speakers; sid ${KokoroVoiceCatalog.voices.last().sid} is required"
@@ -106,7 +105,7 @@ class KokoroTtsEngineProvider(
 
             Try.success(
                 KokoroTtsEngine(
-                    offlineTts = createdTts,
+                    synthesisBackend = createdBackend,
                     settingsResolver = KokoroTtsSettingsResolver(metadata, defaults),
                     initialPreferences = initialPreferences,
                     runtimeModel = runtimeModel,
@@ -122,11 +121,11 @@ class KokoroTtsEngineProvider(
                 ),
             )
         } catch (error: CancellationException) {
-            runCatching { offlineTts?.release() }
+            runCatching { synthesisBackend?.release() }
             if (nativeLeaseHeld.compareAndSet(true, false)) nativeSessionMutex.unlock()
             throw error
         } catch (error: Throwable) {
-            runCatching { offlineTts?.release() }
+            runCatching { synthesisBackend?.release() }
             if (nativeLeaseHeld.compareAndSet(true, false)) nativeSessionMutex.unlock()
             Try.failure(mapInitializationError(error))
         }

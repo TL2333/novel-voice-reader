@@ -54,7 +54,7 @@ class KokoroDiagnosticController(
     private val _state = MutableStateFlow(
         DiagnosticsUiState(
             supportedAbi = Build.SUPPORTED_ABIS.joinToString().ifBlank { Build.CPU_ABI },
-            modelPath = "apk-assets://${com.tl2333.novelvoicereader.tts.kokoro.KokoroConfigFactory.ASSET_DIRECTORY}",
+            modelPath = "apk-assets://${com.tl2333.novelvoicereader.tts.kokoro.KokoroAssetLayout.ASSET_DIRECTORY}",
             modelSizeBytes = initialManifest?.totalSizeBytes,
             message = "Kokoro 离线引擎尚未验证。",
             phase = "Ready",

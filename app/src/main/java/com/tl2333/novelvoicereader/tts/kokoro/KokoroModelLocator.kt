@@ -183,7 +183,7 @@ class KokoroModelLocator(
 
     fun loadManifest(): KokoroModelManifest {
         val source = try {
-            assets.open("${KokoroConfigFactory.ASSET_DIRECTORY}/$MANIFEST_FILE").bufferedReader(Charsets.UTF_8).use { it.readText() }
+            assets.open("${KokoroAssetLayout.ASSET_DIRECTORY}/$MANIFEST_FILE").bufferedReader(Charsets.UTF_8).use { it.readText() }
         } catch (error: Throwable) {
             throw KokoroModelPreparationException(
                 KokoroModelFailure.MISSING,
@@ -204,7 +204,7 @@ class KokoroModelLocator(
 
     private fun enforcePinnedManifest(manifest: KokoroModelManifest) {
         if (manifest.huggingFaceCommit != KokoroModelVerifier.PINNED_COMMIT ||
-            manifest.file(KokoroConfigFactory.MODEL_FILE)?.sha256 != KokoroModelVerifier.MODEL_SHA256 ||
+            manifest.file(KokoroAssetLayout.MODEL_FILE)?.sha256 != KokoroModelVerifier.MODEL_SHA256 ||
             manifest.file("lexicon-zh.txt")?.sha256 != KokoroModelVerifier.LEXICON_ZH_SHA256
         ) {
             throw KokoroModelPreparationException(
@@ -250,7 +250,7 @@ class KokoroModelLocator(
     private fun digestAsset(relativePath: String): Pair<Long, String> {
         val digest = MessageDigest.getInstance("SHA-256")
         var size = 0L
-        assets.open("${KokoroConfigFactory.ASSET_DIRECTORY}/$relativePath", AssetManager.ACCESS_STREAMING).use { input ->
+        assets.open("${KokoroAssetLayout.ASSET_DIRECTORY}/$relativePath", AssetManager.ACCESS_STREAMING).use { input ->
             val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
             while (true) {
                 val read = input.read(buffer)
@@ -265,7 +265,7 @@ class KokoroModelLocator(
     private fun copyVerifiedAsset(entry: KokoroModelFile, destination: File) {
         val digest = MessageDigest.getInstance("SHA-256")
         var size = 0L
-        assets.open("${KokoroConfigFactory.ASSET_DIRECTORY}/${entry.path}", AssetManager.ACCESS_STREAMING).use { input ->
+        assets.open("${KokoroAssetLayout.ASSET_DIRECTORY}/${entry.path}", AssetManager.ACCESS_STREAMING).use { input ->
             FileOutputStream(destination).use { output ->
                 val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
                 while (true) {
@@ -332,7 +332,7 @@ class KokoroModelLocator(
         private const val MANIFEST_FILE = "models-manifest.json"
         private const val ESPEAK_DIRECTORY = "espeak-ng-data"
         private const val COMPLETE_MARKER = ".complete"
-        /** Every packaged file referenced by [KokoroConfigFactory], plus the required GB lexicon. */
+        /** Every packaged file referenced by the service config, plus the required GB lexicon. */
         private val ENGINE_ASSET_PATHS = linkedSetOf(
             "model.int8.onnx",
             "voices.bin",

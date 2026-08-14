@@ -45,5 +45,11 @@
                 <action android:name="androidx.media3.session.MediaSessionService" />
             </intent-filter>
         </service>
+
+        <service
+            android:name=".tts.service.TtsInferenceService"
+            android:exported="false"
+            android:process=":tts"
+            android:stopWithTask="false" />
     </application>
 </manifest>
