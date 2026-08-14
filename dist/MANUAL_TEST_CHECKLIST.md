@@ -1,42 +1,52 @@
-# Manual Device Test Checklist
+# Narration V2 Manual Device Checklist
 
-Device information:
+Current execution status: `NOT_RUN_DEVICE_DISCONNECTED`.
 
-- [ ] Brand/model:
-- [ ] Android version:
-- [ ] CPU ABI reports arm64-v8a:
-- [ ] RAM:
-- [ ] Available storage:
+## Device and installation
 
-Installation and model:
+- [ ] `I7SGOJXWBMPBZ9AA` appears as `device` in `adb devices -l`.
+- [ ] Install `NovelVoiceReader-arm64-debug-narration-v2.apk` with `adb install -r`.
+- [ ] Confirm Xiaomi 2311DRK48G, Android 15 / SDK 35, arm64-v8a, RAM and available storage.
+- [ ] Confirm runtime profile is `HIGH_MEMORY` without a model-name override.
+- [ ] App and reader main process survive a forced `:tts` process death and permit one retry.
 
-- [ ] APK installs successfully.
-- [ ] App starts without a crash.
-- [ ] Offline model preparation completes.
-- [ ] Diagnostics page generates audible speech.
-- [ ] Chinese is intelligible.
-- [ ] Female voice (default sid 3 / zf_001) is audible.
-- [ ] Male voice (default sid 58 / zm_009) is audible.
+## Format acceptance
 
-EPUB and narration:
+- [ ] EPUB: import, open, navigate, narrate, restore progress, bookmark, sentence decoration.
+- [ ] UTF-8 and GB18030 TXT: import, chapter detection, read, narrate, restore, bookmark.
+- [ ] DOCX: title, heading, paragraph, list, table; read, narrate, restore, bookmark.
+- [ ] Text PDF: open, page, extract, narrate, restore progress.
+- [ ] Scan PDF: detect scan, run bundled local OCR, create readable text, narrate; clear error on OCR failure.
+- [ ] Static Chinese and English articles: URL, extract, snapshot, Library, read, narrate offline.
+- [ ] JS article: guarded fallback, snapshot, read/narrate after disconnect.
+- [ ] Direct PDF/TXT/DOCX/EPUB URLs route to the correct importer.
+- [ ] `.doc` shows explicit unsupported/conversion guidance and is never treated as DOCX/text.
 
-- [ ] A normal local EPUB imports through the document picker.
-- [ ] Chapter table of contents is correct.
-- [ ] Full reading position restores after reopening.
-- [ ] Play/pause works.
-- [ ] Previous/next sentence works.
-- [ ] Sentence highlight follows narration.
-- [ ] Auto-follow works without excessive jumping.
-- [ ] Automatic next chapter works.
-- [ ] Background playback works.
-- [ ] Lock-screen playback controls work.
-- [ ] First sentence wait time (seconds):
-- [ ] Continuous narration has no unacceptable gaps.
+## Speed and ordering
 
-Stability and quality:
+- [ ] During continuous playback switch 1.0 → 1.5 → 2.0 → 1.25 → 1.75 → 1.0.
+- [ ] Pitch remains close to original.
+- [ ] Current audio is not re-synthesized and cache is not cleared.
+- [ ] No jump to sentence start, duplicate, skip, or out-of-order segment.
+- [ ] Previous/next, pause/resume, stop, and “from here” work for every supported reader.
 
-- [ ] No crash observed.
-- [ ] Thermal behavior:
-- [ ] Actual voice-quality notes:
-- [ ] Error screenshot attached if applicable.
-- [ ] Diagnostics error code:
+## Benchmark and 30-minute run
+
+- [ ] Run the fixed 20-segment offline benchmark; record p50/p90/p95 RTF and load factors.
+- [ ] Export NarrationTrace JSONL and verify no document text is present.
+- [ ] Warm the required wall buffer, then run at least 30 minutes, including 1x/1.5x/2x.
+- [ ] Record crash count, SIGABRT, underruns, duplicates, skips, ordering, restarts, min/average buffer, gaps, main RAM, TTS RAM, thermal and battery notes.
+- [ ] Required: crash 0, SIGABRT 0, duplicate 0, skipped 0, out-of-order 0; target underrun 0 after warm buffer.
+
+## Evidence fields
+
+- Device/build fingerprint:
+- Test corpus/document hashes:
+- p50 / p95 RTF:
+- Minimum / average buffer:
+- Maximum unplanned gap:
+- Crash / SIGABRT / underrun counts:
+- Duplicate / skipped / out-of-order counts:
+- Main / TTS RSS:
+- 30-minute start/end timestamps:
+- Trace/logcat attachment:

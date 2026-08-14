@@ -197,7 +197,7 @@ def verify(apk: pathlib.Path, sdk_root: pathlib.Path, report: pathlib.Path) -> N
 
     scan_payload(apk)
     report.parent.mkdir(parents=True, exist_ok=True)
-    report.write_text(
+    report.write_bytes((
         "APK static verification: PASS\n"
         f"Path: {apk.resolve()}\n"
         f"Size: {apk.stat().st_size}\n"
@@ -212,9 +212,8 @@ def verify(apk: pathlib.Path, sdk_root: pathlib.Path, report: pathlib.Path) -> N
         f"zipalign: {alignment_output.strip() or 'verified'}\n"
         "\nUncompressed-size Compressed-size CRC32 Entry\n"
         + "\n".join(lines)
-        + "\n",
-        encoding="utf-8",
-    )
+        + "\n"
+    ).encode("utf-8"))
 
 
 def main() -> int:

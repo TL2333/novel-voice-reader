@@ -1,1 +1,1 @@
-86438ecd4c32070ac80c00c9827653e40dd3a4bda3885d8cadb7f138df364444  NovelVoiceReader-arm64-debug.apk
+dd07cbb86eae567c78b92ebd869cae5f7828143f68c5b918c6591143d32827d2  NovelVoiceReader-arm64-debug-narration-v2.apk

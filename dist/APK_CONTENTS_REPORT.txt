@@ -1,12 +1,12 @@
 APK static verification: PASS
 Path: C:\code\novel-voice-reader\app\build\outputs\apk\debug\app-debug.apk
-Size: 249045495
-SHA256: 86438ecd4c32070ac80c00c9827653e40dd3a4bda3885d8cadb7f138df364444
+Size: 263563538
+SHA256: dd07cbb86eae567c78b92ebd869cae5f7828143f68c5b918c6591143d32827d2
 Metadata: {'package': 'com.tl2333.novelvoicereader', 'version_code': '1', 'version_name': '0.1.0', 'min_sdk': '26', 'target_sdk': '36'}
 Native ABIs: ['arm64-v8a']
 Required native libraries: ['lib/arm64-v8a/libonnxruntime.so', 'lib/arm64-v8a/libsherpa-onnx-c-api.so', 'lib/arm64-v8a/libsherpa-onnx-cxx-api.so', 'lib/arm64-v8a/libsherpa-onnx-jni.so']
-Forbidden permissions: absent
-Required Kokoro assets and deterministic test EPUB: verified
+Network boundary permissions: INTERNET present; forbidden storage and network-state permissions absent
+Required Kokoro assets, bundled Chinese/Latin OCR models, and deterministic test EPUB: verified
 Packaged model SHA256: bda15858163726a492d02a9a727bc263551b86ac77f90812c4b30ff41d380e26
 apksigner: Verifies
 Verified using v1 scheme (JAR signing): false
@@ -20,25 +20,27 @@ zipalign: verified
 
 Uncompressed-size Compressed-size CRC32 Entry
           56           52 56aeffda META-INF/com/android/build/gradle/app-metadata.properties
-    41942136     10671258 44ae9d6b classes.dex
-      162860        68736 ee4db3ce classes10.dex
-      275772       115587 6ad102e6 classes11.dex
-        1320          782 c077faa7 classes12.dex
-       64592        28659 7ecca357 classes13.dex
-    15799288      6284593 446a9231 classes14.dex
-    10704444      4469681 25b4713f classes15.dex
-    12076312      4637423 6b36ed57 classes16.dex
-     1809196       703486 c5575672 classes17.dex
-      282192        79359 63f26709 classes2.dex
-        4860         2580 19cd5aeb classes3.dex
-       38068        17435 47a58928 classes4.dex
-      150288        57637 8112a089 classes5.dex
-      257316        96802 16cd0519 classes6.dex
-      287608       115726 c2b65cc4 classes7.dex
-       63980        27397 55b759be classes8.dex
-       46884        20204 3be1b0f2 classes9.dex
+    42029580     10706783 5badcd8b classes.dex
+       26220        12439 8579affb classes10.dex
+       46884        20204 3be1b0f2 classes11.dex
+      162860        68736 ee4db3ce classes13.dex
+      285896       119256 0603a57f classes14.dex
+        1320          782 c077faa7 classes15.dex
+       64592        28659 7ecca357 classes16.dex
+    16252268      6444321 c0c2eeb4 classes17.dex
+    11288968      4694620 629d2d3d classes18.dex
+    11157288      4113776 ecf888fa classes19.dex
+      290860        81863 74134979 classes2.dex
+     4098804      1642264 3557f88e classes20.dex
+       25896        12797 5de92aed classes3.dex
+       70064        33039 32637856 classes4.dex
+       38068        17435 47a58928 classes5.dex
+      184564        70974 89229e55 classes6.dex
+      366604       142847 18698f17 classes7.dex
+       63980        27397 55b759be classes9.dex
        10096        10096 9734baa0 lib/arm64-v8a/libandroidx.graphics.path.so
        10360        10360 d7b2b35c lib/arm64-v8a/libdatastore_shared_counter.so
+    11064544     11064544 5a02f1b7 lib/arm64-v8a/libmlkit_google_ocr_pipeline.so
     21688920     21688920 093f8d46 lib/arm64-v8a/libonnxruntime.so
      4406888      4406888 bd65b2ef lib/arm64-v8a/libsherpa-onnx-c-api.so
       440272       440272 d91aa826 lib/arm64-v8a/libsherpa-onnx-cxx-api.so
@@ -424,7 +426,38 @@ Uncompressed-size Compressed-size CRC32 Entry
          535          339 a0f830cc assets/licenses/ANDROIDX_MEDIA3_NOTICES.txt
        11358         4430 86e2b4b4 assets/licenses/KOKORO_LICENSE.txt
         1073          634 fa60cd37 assets/licenses/ONNX_RUNTIME_LICENSE.txt
+        1508          810 a87fc59e assets/licenses/READIUM_LICENSE.txt
        11358         4430 86e2b4b4 assets/licenses/SHERPA_ONNX_LICENSE.txt
+         276          208 c88c8259 assets/mlkit-google-ocr-models/aksara/aksara_page_layout_analysis_rpn_gcn.binarypb
+         278          209 51045e9e assets/mlkit-google-ocr-models/aksara/aksara_page_layout_analysis_ti_rpn_gcn.binarypb
+       70403        22276 df5e580f assets/mlkit-google-ocr-models/gocr/gocr_models/line_recognition_legacy_mobile/Hani_ctc/optical/assets.extra/LabelMap.pb
+       40808        30960 8f059a6d assets/mlkit-google-ocr-models/gocr/gocr_models/line_recognition_legacy_mobile/Hani_ctc/optical/conv_model.fb
+      891872       617111 d66a0d8a assets/mlkit-google-ocr-models/gocr/gocr_models/line_recognition_legacy_mobile/Hani_ctc/optical/lstm_model.fb
+         329          256 686d837f assets/mlkit-google-ocr-models/gocr/gocr_models/line_recognition_legacy_mobile/Hani_ctc_cpu.binarypb
+        3809         1532 79ef3572 assets/mlkit-google-ocr-models/gocr/gocr_models/line_recognition_legacy_mobile/Latn_ctc/optical/assets.extra/LabelMap.pb
+       40848        31340 bb1af2f9 assets/mlkit-google-ocr-models/gocr/gocr_models/line_recognition_legacy_mobile/Latn_ctc/optical/conv_model.fb
+      309568       188106 56d84482 assets/mlkit-google-ocr-models/gocr/gocr_models/line_recognition_legacy_mobile/Latn_ctc/optical/lstm_model.fb
+         333          259 faed6388 assets/mlkit-google-ocr-models/gocr/gocr_models/line_recognition_legacy_mobile/Latn_ctc_cpu.binarypb
+      315520       315520 394e5f6d assets/mlkit-google-ocr-models/gocr/gocr_models/line_recognition_legacy_mobile/tflite_langid.tflite
+      129612       129612 8c83cb60 assets/mlkit-google-ocr-models/gocr/layout/line_clustering_custom_ops/model.tflite
+      114384       114384 2c61a068 assets/mlkit-google-ocr-models/gocr/layout/line_splitting_custom_ops/model.tflite
+         452          382 a95a9b87 assets/mlkit-google-ocr-models/taser/detector/region_proposal_text_detector_tflite_vertical_mbv2_v1.bincfg
+      340760       340760 9e027a15 assets/mlkit-google-ocr-models/taser/detector/rpn_text_detector_mobile_space_to_depth_quantized_mbv2_v1.tflite
+         194          143 509c3223 assets/mlkit-google-ocr-models/taser/rpn_text_detection_tflite_mobile_mbv2.binarypb
+        1118          505 c5d63e85 assets/mlkit-google-ocr-models/taser/segmenter/tflite_script_detector_0.3.bincfg
+       40808        31029 ecac958a assets/mlkit-google-ocr-models/taser/segmenter/tflite_script_detector_0.3.conv_model
+      161448       123253 437c9c5c assets/mlkit-google-ocr-models/taser/segmenter/tflite_script_detector_0.3.lstm_model
+         136          114 5d8e08bf assets/mlkit-google-ocr-models/taser/taser_script_identification_tflite_mobile.binarypb
+       13181         3017 1f36448d assets/mlkit-google-ocr-models/taser_tflite_gocrchinese_and_latin_mbv2_aksara_layout_gcn_mobile_engine.binarypb
+       13186         3024 1d1c660b assets/mlkit-google-ocr-models/taser_tflite_gocrchinese_and_latin_mbv2_aksara_layout_gcn_mobile_engine_ti.binarypb
+         316          208 4713df5f assets/mlkit-google-ocr-models/taser_tflite_gocrchinese_and_latin_mbv2_aksara_layout_gcn_mobile_recognizer.binarypb
+         334          235 838ad2a1 assets/mlkit-google-ocr-models/taser_tflite_gocrchinese_and_latin_mbv2_aksara_layout_gcn_mobile_runner.binarypb
+         337          237 bdd17be6 assets/mlkit-google-ocr-models/taser_tflite_gocrchinese_and_latin_mbv2_aksara_layout_gcn_mobile_runner_ti.binarypb
+       13178         3015 e89cc8b7 assets/mlkit-google-ocr-models/taser_tflite_gocrlatin_mbv2_scriptid_aksara_layout_gcn_mobile_engine.binarypb
+       13183         3022 798dc51e assets/mlkit-google-ocr-models/taser_tflite_gocrlatin_mbv2_scriptid_aksara_layout_gcn_mobile_engine_ti.binarypb
+         233          188 d9f38762 assets/mlkit-google-ocr-models/taser_tflite_gocrlatin_mbv2_scriptid_aksara_layout_gcn_mobile_recognizer.binarypb
+         331          233 22dbf3a4 assets/mlkit-google-ocr-models/taser_tflite_gocrlatin_mbv2_scriptid_aksara_layout_gcn_mobile_runner.binarypb
+         334          235 a64ccac0 assets/mlkit-google-ocr-models/taser_tflite_gocrlatin_mbv2_scriptid_aksara_layout_gcn_mobile_runner_ti.binarypb
          604          333 8b9c3b4c assets/readium/divina/divinaPlayer.html
       424586       137653 bbe62918 assets/readium/divina/divinaPlayer.js
         2260          814 f4b35449 assets/readium/divina/divinaTouchHandling.js
@@ -451,7 +484,7 @@ Uncompressed-size Compressed-size CRC32 Entry
       125783        40072 ad736818 assets/readium/scripts/readium-fixed.js
       126068        40213 430bd409 assets/readium/scripts/readium-reflowable.js
         4025         3496 d7633fa9 assets/testbooks/storyvoice-test.epub
-        7772         2131 66c378aa AndroidManifest.xml
+       12124         2954 bb5ccfc2 AndroidManifest.xml
          364          218 7615c3c4 res/anim-v21/fragment_fast_out_extra_slow_in.xml
          388          216 6270df64 res/anim/abc_fade_in.xml
          388          218 748bb31c res/anim/abc_fade_out.xml
@@ -483,28 +516,31 @@ Uncompressed-size Compressed-size CRC32 Entry
          452          265 d7c267d7 res/animator/fragment_fade_exit.xml
         1128          388 d63d91d2 res/animator/fragment_open_enter.xml
         1128          392 17e8fb23 res/animator/fragment_open_exit.xml
-         500          242 8f65cbf6 res/color-v23/abc_btn_colored_borderless_text_material.xml
+         500          242 4891afcb res/color-v23/abc_btn_colored_borderless_text_material.xml
          500          242 7853d352 res/color-v23/abc_btn_colored_text_material.xml
          544          257 83082bae res/color-v23/abc_color_highlight_material.xml
-         624          272 1b24f308 res/color-v23/abc_tint_btn_checkable.xml
-        1120          369 fdfbca5d res/color-v23/abc_tint_default.xml
-         668          282 c5a8039d res/color-v23/abc_tint_edittext.xml
-         500          240 d0d1e1f8 res/color-v23/abc_tint_seek_thumb.xml
-         668          282 c5a8039d res/color-v23/abc_tint_spinner.xml
-         664          281 4d4bdc0a res/color-v23/abc_tint_switch_track.xml
+         624          273 0719931b res/color-v23/abc_tint_btn_checkable.xml
+        1120          370 9a4d0741 res/color-v23/abc_tint_default.xml
+         668          284 7af5a58f res/color-v23/abc_tint_edittext.xml
+         500          240 16af609b res/color-v23/abc_tint_seek_thumb.xml
+         668          284 7af5a58f res/color-v23/abc_tint_spinner.xml
+         664          281 a7745018 res/color-v23/abc_tint_switch_track.xml
          468          231 99d70c23 res/color/abc_background_cache_hint_selector_material_dark.xml
          468          231 40efafa2 res/color/abc_background_cache_hint_selector_material_light.xml
-         564          259 f2f6c674 res/color/abc_hint_foreground_material_dark.xml
-         564          258 34cdeb8a res/color/abc_hint_foreground_material_light.xml
+         564          260 b148903f res/color/abc_hint_foreground_material_dark.xml
+         564          258 dde088e8 res/color/abc_hint_foreground_material_light.xml
          464          228 0a012f2a res/color/abc_primary_text_disable_only_material_dark.xml
          464          228 6451a8e5 res/color/abc_primary_text_disable_only_material_light.xml
-         464          227 3275dcf4 res/color/abc_primary_text_material_dark.xml
-         464          227 a16aa38e res/color/abc_primary_text_material_light.xml
+         464          228 07da22f1 res/color/abc_primary_text_material_dark.xml
+         464          229 9420f773 res/color/abc_primary_text_material_light.xml
          588          250 db149042 res/color/abc_search_url_text.xml
-         464          229 5fc5d880 res/color/abc_secondary_text_material_dark.xml
-         464          228 ccdaa7fa res/color/abc_secondary_text_material_light.xml
-         464          228 cc4dd87e res/color/switch_thumb_material_dark.xml
-         464          229 5f52a704 res/color/switch_thumb_material_light.xml
+         464          228 26d17f22 res/color/abc_secondary_text_material_dark.xml
+         464          227 c4ee95de res/color/abc_secondary_text_material_light.xml
+         712          279 3fa4115a res/color/common_google_signin_btn_text_dark.xml
+         712          279 745bf34d res/color/common_google_signin_btn_text_light.xml
+         464          229 44356c3d res/color/common_google_signin_btn_tint.xml
+         464          227 797d5759 res/color/switch_thumb_material_dark.xml
+         464          227 172dd096 res/color/switch_thumb_material_light.xml
          340          180 fc170232 res/color/vector_tint_color.xml
          340          182 a73afb71 res/color/vector_tint_theme_color.xml
         1404          612 d2f5b598 res/drawable-anydpi-v21/media3_icon_album.xml
@@ -613,6 +649,13 @@ Uncompressed-size Compressed-size CRC32 Entry
          192          192 296f3744 res/drawable-hdpi-v4/abc_textfield_default_mtrl_alpha.9.png
          178          178 bb045ad2 res/drawable-hdpi-v4/abc_textfield_search_activated_mtrl_alpha.9.png
          178          178 aad3c65d res/drawable-hdpi-v4/abc_textfield_search_default_mtrl_alpha.9.png
+         681          681 3ae6b82e res/drawable-hdpi-v4/common_full_open_on_phone.png
+         897          897 85696478 res/drawable-hdpi-v4/common_google_signin_btn_icon_dark_normal_background.9.png
+         683          683 58fb3053 res/drawable-hdpi-v4/common_google_signin_btn_icon_light_normal_background.9.png
+         960          960 d939ee0d res/drawable-hdpi-v4/common_google_signin_btn_text_dark_normal_background.9.png
+         694          694 9a55c238 res/drawable-hdpi-v4/common_google_signin_btn_text_light_normal_background.9.png
+         410          410 0cb58331 res/drawable-hdpi-v4/googleg_disabled_color_18.png
+         808          808 7d62f5a4 res/drawable-hdpi-v4/googleg_standard_color_18.png
          212          212 378c117e res/drawable-hdpi-v4/notification_bg_low_normal.9.png
          225          225 5059e725 res/drawable-hdpi-v4/notification_bg_low_pressed.9.png
          212          212 c22cbe9f res/drawable-hdpi-v4/notification_bg_normal.9.png
@@ -657,6 +700,12 @@ Uncompressed-size Compressed-size CRC32 Entry
          178          178 c56f26da res/drawable-mdpi-v4/abc_textfield_default_mtrl_alpha.9.png
          178          178 6899209c res/drawable-mdpi-v4/abc_textfield_search_activated_mtrl_alpha.9.png
          178          178 af91e7cc res/drawable-mdpi-v4/abc_textfield_search_default_mtrl_alpha.9.png
+         610          610 88698600 res/drawable-mdpi-v4/common_google_signin_btn_icon_dark_normal_background.9.png
+         500          500 c6f5722c res/drawable-mdpi-v4/common_google_signin_btn_icon_light_normal_background.9.png
+         615          615 4199e4d9 res/drawable-mdpi-v4/common_google_signin_btn_text_dark_normal_background.9.png
+         465          465 dd5d7c6f res/drawable-mdpi-v4/common_google_signin_btn_text_light_normal_background.9.png
+         281          281 fa60669e res/drawable-mdpi-v4/googleg_disabled_color_18.png
+         562          562 76065920 res/drawable-mdpi-v4/googleg_standard_color_18.png
          215          215 d9fa55b7 res/drawable-mdpi-v4/notification_bg_low_normal.9.png
          223          223 b80ede38 res/drawable-mdpi-v4/notification_bg_low_pressed.9.png
          215          215 c135d194 res/drawable-mdpi-v4/notification_bg_normal.9.png
@@ -664,8 +713,8 @@ Uncompressed-size Compressed-size CRC32 Entry
           98           98 2ea3830b res/drawable-mdpi-v4/notify_panel_notification_icon_bg.png
          264          152 3544f8f1 res/drawable-v21/abc_action_bar_item_background_material.xml
         1716          551 23136bc0 res/drawable-v21/abc_btn_colored_material.xml
-         716          324 debec3be res/drawable-v21/abc_dialog_material_background.xml
-        1172          461 4c9096ad res/drawable-v21/abc_edit_text_material.xml
+         716          324 0968ad98 res/drawable-v21/abc_dialog_material_background.xml
+        1172          463 f7b75953 res/drawable-v21/abc_edit_text_material.xml
          516          246 830da9c7 res/drawable-v21/abc_list_divider_material.xml
          304          175 f11bfae2 res/drawable-v23/abc_control_background_material.xml
          372          185 e87e5f7a res/drawable-watch-v20/abc_dialog_material_background.xml
@@ -702,6 +751,13 @@ Uncompressed-size Compressed-size CRC32 Entry
          187          187 52c5a6c3 res/drawable-xhdpi-v4/abc_textfield_default_mtrl_alpha.9.png
          184          184 d42327b8 res/drawable-xhdpi-v4/abc_textfield_search_activated_mtrl_alpha.9.png
          182          182 2d0b1d64 res/drawable-xhdpi-v4/abc_textfield_search_default_mtrl_alpha.9.png
+         489          489 cc7eabe9 res/drawable-xhdpi-v4/common_full_open_on_phone.png
+        1032         1032 f4f0cee1 res/drawable-xhdpi-v4/common_google_signin_btn_icon_dark_normal_background.9.png
+         776          776 c1b93349 res/drawable-xhdpi-v4/common_google_signin_btn_icon_light_normal_background.9.png
+        1086         1086 fecc21a4 res/drawable-xhdpi-v4/common_google_signin_btn_text_dark_normal_background.9.png
+         808          808 db1aed88 res/drawable-xhdpi-v4/common_google_signin_btn_text_light_normal_background.9.png
+         516          516 edf1a67b res/drawable-xhdpi-v4/googleg_disabled_color_18.png
+         982          982 bc0a585a res/drawable-xhdpi-v4/googleg_standard_color_18.png
          221          221 3ad03275 res/drawable-xhdpi-v4/notification_bg_low_normal.9.png
          252          252 c8900a8e res/drawable-xhdpi-v4/notification_bg_low_pressed.9.png
          221          221 9944f31a res/drawable-xhdpi-v4/notification_bg_normal.9.png
@@ -740,6 +796,12 @@ Uncompressed-size Compressed-size CRC32 Entry
          200          200 3023e3da res/drawable-xxhdpi-v4/abc_textfield_default_mtrl_alpha.9.png
          187          187 4164b6d3 res/drawable-xxhdpi-v4/abc_textfield_search_activated_mtrl_alpha.9.png
          186          186 f52e9e15 res/drawable-xxhdpi-v4/abc_textfield_search_default_mtrl_alpha.9.png
+        1510         1510 30b789c3 res/drawable-xxhdpi-v4/common_google_signin_btn_icon_dark_normal_background.9.png
+        1138         1138 aefcba59 res/drawable-xxhdpi-v4/common_google_signin_btn_icon_light_normal_background.9.png
+        1638         1638 89e3a379 res/drawable-xxhdpi-v4/common_google_signin_btn_text_dark_normal_background.9.png
+        1255         1255 3dae25e9 res/drawable-xxhdpi-v4/common_google_signin_btn_text_light_normal_background.9.png
+         727          727 2c75d16b res/drawable-xxhdpi-v4/googleg_disabled_color_18.png
+        1441         1441 e1b2a1fb res/drawable-xxhdpi-v4/googleg_standard_color_18.png
          275          275 96d1317c res/drawable-xxxhdpi-v4/abc_btn_check_to_on_mtrl_000.png
          476          476 c4de743b res/drawable-xxxhdpi-v4/abc_btn_check_to_on_mtrl_015.png
          785          785 1cea0e0c res/drawable-xxxhdpi-v4/abc_btn_radio_to_on_mtrl_000.png
@@ -755,24 +817,24 @@ Uncompressed-size Compressed-size CRC32 Entry
          513          513 6eddf9de res/drawable-xxxhdpi-v4/abc_text_select_handle_right_mtrl.png
          588          252 a353715b res/drawable/abc_btn_borderless_material.xml
          464          230 bd73bf0b res/drawable/abc_btn_check_material.xml
-         816          342 be3165e5 res/drawable/abc_btn_check_material_anim.xml
+         816          342 f772002e res/drawable/abc_btn_check_material_anim.xml
          932          394 fee0b6ea res/drawable/abc_btn_default_mtrl_shape.xml
          464          231 577867d3 res/drawable/abc_btn_radio_material.xml
-         816          342 49f4d6bc res/drawable/abc_btn_radio_material_anim.xml
+         816          342 1cfd2699 res/drawable/abc_btn_radio_material_anim.xml
          372          185 d6ab29f3 res/drawable/abc_cab_background_internal_bg.xml
          336          174 a5e03008 res/drawable/abc_cab_background_top_material.xml
-         692          381 ac1c781e res/drawable/abc_ic_ab_back_material.xml
-        1000          491 46ae464e res/drawable/abc_ic_arrow_drop_right_black_24dp.xml
-         684          360 9b7209d1 res/drawable/abc_ic_clear_material.xml
-         640          339 fec82a83 res/drawable/abc_ic_go_search_api_material.xml
+         692          382 abef88d8 res/drawable/abc_ic_ab_back_material.xml
+        1000          491 a013129d res/drawable/abc_ic_arrow_drop_right_black_24dp.xml
+         684          360 a56a506b res/drawable/abc_ic_clear_material.xml
+         640          340 c0d07339 res/drawable/abc_ic_go_search_api_material.xml
          756          405 086c7021 res/drawable/abc_ic_menu_copy_mtrl_am_alpha.xml
         1096          554 1b63de59 res/drawable/abc_ic_menu_cut_mtrl_alpha.xml
-         792          389 c3b4a36c res/drawable/abc_ic_menu_overflow_material.xml
+         792          390 fdacfad6 res/drawable/abc_ic_menu_overflow_material.xml
          796          435 5b72ebd5 res/drawable/abc_ic_menu_paste_mtrl_am_alpha.xml
          920          471 72fae916 res/drawable/abc_ic_menu_selectall_mtrl_alpha.xml
          980          514 20a74973 res/drawable/abc_ic_menu_share_mtrl_alpha.xml
-         812          452 a834f63e res/drawable/abc_ic_search_api_material.xml
-         828          456 1d752498 res/drawable/abc_ic_voice_search_api_material.xml
+         812          452 962caf84 res/drawable/abc_ic_search_api_material.xml
+         828          456 236d7d22 res/drawable/abc_ic_voice_search_api_material.xml
         1012          319 7304aedf res/drawable/abc_item_background_holo_dark.xml
         1012          319 ca2e988c res/drawable/abc_item_background_holo_light.xml
          424          199 3b16abbc res/drawable/abc_list_selector_background_transition_holo_dark.xml
@@ -801,6 +863,20 @@ Uncompressed-size Compressed-size CRC32 Entry
          680          302 b555f63e res/drawable/btn_radio_off_to_on_mtrl_animation.xml
         1656          678 958fd62f res/drawable/btn_radio_on_mtrl.xml
          680          301 0cccb1b6 res/drawable/btn_radio_on_to_off_mtrl_animation.xml
+         588          260 384b827a res/drawable/common_google_signin_btn_icon_dark.xml
+         892          373 43792aaf res/drawable/common_google_signin_btn_icon_dark_focused.xml
+         548          254 080b6525 res/drawable/common_google_signin_btn_icon_dark_normal.xml
+        1132          438 0c67bd55 res/drawable/common_google_signin_btn_icon_disabled.xml
+         588          259 b00196a3 res/drawable/common_google_signin_btn_icon_light.xml
+         892          371 aa457296 res/drawable/common_google_signin_btn_icon_light_focused.xml
+         548          255 d890320e res/drawable/common_google_signin_btn_icon_light_normal.xml
+         588          254 9bd0e522 res/drawable/common_google_signin_btn_text_dark.xml
+         892          373 24434251 res/drawable/common_google_signin_btn_text_dark_focused.xml
+         584          272 f48191f6 res/drawable/common_google_signin_btn_text_dark_normal.xml
+        1152          447 8c680011 res/drawable/common_google_signin_btn_text_disabled.xml
+         588          258 ff49de11 res/drawable/common_google_signin_btn_text_light.xml
+         892          370 f7212c18 res/drawable/common_google_signin_btn_text_light_focused.xml
+         584          271 73b3ba8e res/drawable/common_google_signin_btn_text_light_normal.xml
         1356          664 5df18b22 res/drawable/ic_call_answer.xml
         1320          644 841b4300 res/drawable/ic_call_answer_low.xml
          772          425 ea3d6fda res/drawable/ic_call_answer_video.xml
@@ -811,15 +887,15 @@ Uncompressed-size Compressed-size CRC32 Entry
         2683         2683 28550800 res/drawable/media3_icon_circular_play.png
          648          355 aab2a878 res/drawable/media_session_service_notification_ic_music_note.xml
         1180          471 e109c27e res/drawable/notification_action_background.xml
-         532          252 abf55a6b res/drawable/notification_bg.xml
-         532          253 bf419fd3 res/drawable/notification_bg_low.xml
-         372          184 e8c4172f res/drawable/notification_icon_background.xml
-         304          174 f07660fb res/drawable/notification_tile_bg.xml
+         532          254 f18481fd res/drawable/notification_bg.xml
+         532          254 ad0b1442 res/drawable/notification_bg_low.xml
+         372          185 7cfd32ba res/drawable/notification_icon_background.xml
+         304          174 361caa32 res/drawable/notification_tile_bg.xml
         1600          753 82092d21 res/drawable/readium_media_notification_fastforward.xml
         2792         1139 67c5b91f res/drawable/readium_media_notification_rewind.xml
-         448          217 8eb84bbf res/drawable/test_level_drawable.xml
-         484          225 bd0e3ca8 res/drawable/tooltip_frame_dark.xml
-         484          225 a053f2ec res/drawable/tooltip_frame_light.xml
+         448          217 4d1d8952 res/drawable/test_level_drawable.xml
+         484          224 63f03a47 res/drawable/tooltip_frame_dark.xml
+         484          224 db8f23bb res/drawable/tooltip_frame_light.xml
          316          187 45cb4331 res/interpolator/btn_checkbox_checked_mtrl_animation_interpolator_0.xml
          328          190 ecacd32e res/interpolator/btn_checkbox_checked_mtrl_animation_interpolator_1.xml
          316          187 45cb4331 res/interpolator/btn_checkbox_unchecked_mtrl_animation_interpolator_0.xml
@@ -827,77 +903,77 @@ Uncompressed-size Compressed-size CRC32 Entry
          320          190 b0798f16 res/interpolator/btn_radio_to_off_mtrl_animation_interpolator_0.xml
          320          190 b0798f16 res/interpolator/btn_radio_to_on_mtrl_animation_interpolator_0.xml
          400          214 002d5658 res/interpolator/fast_out_slow_in.xml
-        1560          651 812995f5 res/layout-v26/abc_screen_toolbar.xml
-        1208          466 79c8836a res/layout-watch-v20/abc_alert_dialog_button_bar_material.xml
-        1352          549 44b6b72d res/layout-watch-v20/abc_alert_dialog_title_material.xml
+        1560          652 dbd03099 res/layout-v26/abc_screen_toolbar.xml
+        1208          468 cbb4861d res/layout-watch-v20/abc_alert_dialog_button_bar_material.xml
+        1352          549 fd84eaf6 res/layout-watch-v20/abc_alert_dialog_title_material.xml
          872          388 147e3ea3 res/layout/abc_action_bar_title_item.xml
          440          251 2ddc3c6f res/layout/abc_action_bar_up_container.xml
          768          394 ac0e9bc3 res/layout/abc_action_menu_item_layout.xml
-         576          297 b2106f7a res/layout/abc_action_menu_layout.xml
+         576          297 86c62862 res/layout/abc_action_menu_layout.xml
          464          269 240d0e1b res/layout/abc_action_mode_bar.xml
-         840          431 9ad2396a res/layout/abc_action_mode_close_item_material.xml
-        1684          596 979c025e res/layout/abc_activity_chooser_view.xml
-        1304          570 39807e6a res/layout/abc_activity_chooser_view_list_item.xml
-        1584          610 cc0c8046 res/layout/abc_alert_dialog_button_bar_material.xml
-        2648          836 2b28f151 res/layout/abc_alert_dialog_material.xml
-        1560          644 5e7bcb62 res/layout/abc_alert_dialog_title_material.xml
-        1868          713 a45107a3 res/layout/abc_cascading_menu_item_layout.xml
-        1116          523 8dae5480 res/layout/abc_dialog_title_material.xml
-         388          233 6c0d626d res/layout/abc_expanded_menu_layout.xml
-         528          283 008d1a67 res/layout/abc_list_menu_item_checkbox.xml
-         780          381 6de09479 res/layout/abc_list_menu_item_icon.xml
-        1396          596 c35bd8b4 res/layout/abc_list_menu_item_layout.xml
-         532          287 17a35616 res/layout/abc_list_menu_item_radio.xml
-         848          433 29f8e44c res/layout/abc_popup_menu_header_item_layout.xml
-        2072          807 aac460d8 res/layout/abc_popup_menu_item_layout.xml
+         840          429 151d2076 res/layout/abc_action_mode_close_item_material.xml
+        1684          596 66a5a494 res/layout/abc_activity_chooser_view.xml
+        1304          572 e7d4089c res/layout/abc_activity_chooser_view_list_item.xml
+        1584          611 d7a5bbcc res/layout/abc_alert_dialog_button_bar_material.xml
+        2648          834 bac8f9ce res/layout/abc_alert_dialog_material.xml
+        1560          644 3c443a5c res/layout/abc_alert_dialog_title_material.xml
+        1868          714 ec4795a2 res/layout/abc_cascading_menu_item_layout.xml
+        1116          523 81abd9d4 res/layout/abc_dialog_title_material.xml
+         388          233 47cada9f res/layout/abc_expanded_menu_layout.xml
+         528          283 fbb1b744 res/layout/abc_list_menu_item_checkbox.xml
+         780          381 7e314e8e res/layout/abc_list_menu_item_icon.xml
+        1396          596 68deaef7 res/layout/abc_list_menu_item_layout.xml
+         532          286 f09d67ae res/layout/abc_list_menu_item_radio.xml
+         848          434 984945d1 res/layout/abc_popup_menu_header_item_layout.xml
+        2072          809 e91194b4 res/layout/abc_popup_menu_item_layout.xml
          548          297 017a5b47 res/layout/abc_screen_content_include.xml
          832          395 f26f4a2c res/layout/abc_screen_simple.xml
          792          376 1fa624fc res/layout/abc_screen_simple_overlay_action_mode.xml
-        1916          670 53811be1 res/layout/abc_search_dropdown_item_icons_2line.xml
-        3472         1102 0a06cadf res/layout/abc_search_view.xml
-        1020          536 8a499815 res/layout/abc_select_dialog_material.xml
-        1056          502 5ce29be3 res/layout/abc_tooltip.xml
-        1660          692 3f3f3912 res/layout/browser_actions_context_menu_page.xml
-        1212          554 6d5c393d res/layout/browser_actions_context_menu_row.xml
-         612          310 ae93d275 res/layout/custom_dialog.xml
+        1916          670 ab3271ff res/layout/abc_search_dropdown_item_icons_2line.xml
+        3472         1102 bd149feb res/layout/abc_search_view.xml
+        1020          537 9ae7dc92 res/layout/abc_select_dialog_material.xml
+        1056          500 ccc63604 res/layout/abc_tooltip.xml
+        1660          692 55215390 res/layout/browser_actions_context_menu_page.xml
+        1212          555 254b936e res/layout/browser_actions_context_menu_row.xml
+         612          310 f3a0c5a7 res/layout/custom_dialog.xml
          364          201 3f91baac res/layout/ime_base_split_test_activity.xml
-         876          417 007a844e res/layout/ime_secondary_split_test_activity.xml
+         876          417 e3529785 res/layout/ime_secondary_split_test_activity.xml
          564          303 34d0d9f3 res/layout/media3_notification_media_action.xml
-        1336          550 a2e294c9 res/layout/media3_notification_template_big_media.xml
-        2684          897 95dc5ac3 res/layout/media3_notification_template_big_media_custom.xml
-        1464          582 d40c83d8 res/layout/media3_notification_template_big_media_narrow.xml
-        2828          928 fe524b21 res/layout/media3_notification_template_big_media_narrow_custom.xml
-        2872          807 64a432c9 res/layout/media3_notification_template_lines_media.xml
-        1076          440 346b84dc res/layout/media3_notification_template_media.xml
-        2504          817 c17a2d14 res/layout/media3_notification_template_media_custom.xml
+        1336          550 b2984827 res/layout/media3_notification_template_big_media.xml
+        2684          893 3487ba6f res/layout/media3_notification_template_big_media_custom.xml
+        1464          583 4b6038a4 res/layout/media3_notification_template_big_media_narrow.xml
+        2828          928 010693b8 res/layout/media3_notification_template_big_media_narrow_custom.xml
+        2872          808 b9efaa2c res/layout/media3_notification_template_lines_media.xml
+        1076          439 23553c29 res/layout/media3_notification_template_media.xml
+        2504          815 605c2390 res/layout/media3_notification_template_media_custom.xml
         1052          485 04b76926 res/layout/notification_action.xml
         1228          537 528b0311 res/layout/notification_action_tombstone.xml
          564          303 34d0d9f3 res/layout/notification_media_action.xml
-         744          374 f5cc845c res/layout/notification_media_cancel_action.xml
-        1696          642 2ab22412 res/layout/notification_template_big_media.xml
-        3044          988 395e85a3 res/layout/notification_template_big_media_custom.xml
-        1824          663 0ed3d439 res/layout/notification_template_big_media_narrow.xml
-        3216         1034 4c7c1d36 res/layout/notification_template_big_media_narrow_custom.xml
-        2456          789 2fd55bca res/layout/notification_template_custom_big.xml
-         988          420 c9244fb5 res/layout/notification_template_icon_group.xml
-        2872          806 8e9da8c1 res/layout/notification_template_lines_media.xml
-        1292          512 9006688f res/layout/notification_template_media.xml
-        2756          890 2672779a res/layout/notification_template_media_custom.xml
-         440          260 f203542b res/layout/notification_template_part_chronometer.xml
-         440          261 318a4411 res/layout/notification_template_part_time.xml
-        1556          581 f3ab2ca2 res/layout/readium_navigator_fragment_fxllayout_double.xml
-        1356          560 efcf95e6 res/layout/readium_navigator_fragment_fxllayout_single.xml
-         912          410 b22ed879 res/layout/readium_navigator_viewpager.xml
-         996          454 e5f6fd75 res/layout/readium_navigator_viewpager_fragment_cbz.xml
-         616          319 00f24f45 res/layout/readium_navigator_viewpager_fragment_epub.xml
-         640          349 aad6d5a6 res/layout/select_dialog_item_material.xml
-         864          444 0784bd72 res/layout/select_dialog_multichoice_material.xml
-         864          444 b0055611 res/layout/select_dialog_singlechoice_material.xml
-         464          268 d1ea41c3 res/layout/support_simple_spinner_dropdown_item.xml
+         744          373 a714ba6f res/layout/notification_media_cancel_action.xml
+        1696          641 fdd5ba69 res/layout/notification_template_big_media.xml
+        3044          986 50b8cc6e res/layout/notification_template_big_media_custom.xml
+        1824          663 7bf3d4bc res/layout/notification_template_big_media_narrow.xml
+        3216         1034 61cb4c69 res/layout/notification_template_big_media_narrow_custom.xml
+        2456          789 50f31504 res/layout/notification_template_custom_big.xml
+         988          420 e2999054 res/layout/notification_template_icon_group.xml
+        2872          806 53d63024 res/layout/notification_template_lines_media.xml
+        1292          512 53e9229a res/layout/notification_template_media.xml
+        2756          894 1fe4224f res/layout/notification_template_media_custom.xml
+         440          260 5613f4a9 res/layout/notification_template_part_chronometer.xml
+         440          261 c792b4d2 res/layout/notification_template_part_time.xml
+        1556          581 f237135b res/layout/readium_navigator_fragment_fxllayout_double.xml
+        1356          560 f6fb1bfe res/layout/readium_navigator_fragment_fxllayout_single.xml
+         912          411 ca85d0c9 res/layout/readium_navigator_viewpager.xml
+         996          452 e649db3c res/layout/readium_navigator_viewpager_fragment_cbz.xml
+         616          318 070bb20d res/layout/readium_navigator_viewpager_fragment_epub.xml
+         640          350 efcdc2d2 res/layout/select_dialog_item_material.xml
+         864          445 9f862676 res/layout/select_dialog_multichoice_material.xml
+         864          445 2807cd15 res/layout/select_dialog_singlechoice_material.xml
+         464          268 1029c696 res/layout/support_simple_spinner_dropdown_item.xml
          544          236 2195eedd res/xml/backup_rules.xml
          964          348 f861b25b res/xml/data_extraction_rules.xml
          308          163 10ed4d63 res/xml/image_share_filepaths.xml
-     1007664      1007664 392399e9 resources.arsc
+     1143940      1143940 f0db57c6 resources.arsc
         1733         1733 5b5d6064 DebugProbesKt.bin
            7            7 dd4167a0 META-INF/androidx.activity_activity-compose.version
            7            7 dd4167a0 META-INF/androidx.activity_activity-ktx.version
@@ -1016,6 +1092,12 @@ Uncompressed-size Compressed-size CRC32 Entry
          235           99 30ff9918 META-INF/services/kotlin.reflect.jvm.internal.impl.resolve.ExternalOverridabilityCondition
           54           50 8f594b50 META-INF/services/kotlinx.coroutines.CoroutineExceptionHandler
           52           49 4b95597f META-INF/services/kotlinx.coroutines.internal.MainDispatcherFactory
+          52           38 f8d059e2 common.properties
+          78           51 aa28da88 firebase-annotations.properties
+          76           50 ac2afd8b firebase-components.properties
+          82           53 fe6d9dbc firebase-encoders-json.properties
+          72           48 236cce9e firebase-encoders.properties
+          58           41 315eb7ab image.properties
         1022          542 9ba69669 kotlin/annotation/annotation.kotlin_builtins
         8625         1890 db78dd29 kotlin/collections/collections.kotlin_builtins
         2882         1111 3ca2aa63 kotlin/concurrent/atomics/atomics.kotlin_builtins
@@ -1024,4 +1106,19 @@ Uncompressed-size Compressed-size CRC32 Entry
        30920         5503 df618e5c kotlin/kotlin.kotlin_builtins
         4353         1380 217cddfb kotlin/ranges/ranges.kotlin_builtins
         4859         1447 1792992d kotlin/reflect/reflect.kotlin_builtins
-        1508          810 a87fc59e assets/licenses/READIUM_LICENSE.txt
+          74           50 b7109ceb play-services-base.properties
+          82           53 c13de065 play-services-basement.properties
+         126           75 d6178b68 play-services-mlkit-text-recognition-chinese.properties
+         124           74 ce265c28 play-services-mlkit-text-recognition-common.properties
+         110           67 676657bc play-services-mlkit-text-recognition.properties
+          76           51 5cf3438e play-services-tasks.properties
+         100           62 a4986c34 text-recognition-bundled-common.properties
+          86           55 ccbd711a text-recognition-chinese.properties
+          70           47 536142e5 text-recognition.properties
+          62           44 ea7c4830 transport-api.properties
+          78           52 84bbf427 transport-backend-cct.properties
+          70           48 dee807fe transport-runtime.properties
+          64           42 af3e0115 vision-common.properties
+          72           47 7413473b vision-interfaces.properties
+      211772        92824 caf90d2a classes12.dex
+      476668       182615 cf31b693 classes8.dex
