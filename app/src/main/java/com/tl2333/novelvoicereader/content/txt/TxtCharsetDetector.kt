@@ -17,7 +17,14 @@ object TxtCharsetDetector {
     fun detect(input: InputStream): DetectedCharset {
         val buffered = if (input is BufferedInputStream) input else BufferedInputStream(input)
         buffered.mark(SAMPLE_BYTES + 4)
-        val sample = buffered.readNBytes(SAMPLE_BYTES)
+        val sampleBuffer = ByteArray(SAMPLE_BYTES)
+        var sampleLength = 0
+        while (sampleLength < sampleBuffer.size) {
+            val count = buffered.read(sampleBuffer, sampleLength, sampleBuffer.size - sampleLength)
+            if (count < 0) break
+            sampleLength += count
+        }
+        val sample = sampleBuffer.copyOf(sampleLength)
         buffered.reset()
         if (sample.startsWith(0xEF, 0xBB, 0xBF)) return DetectedCharset(utf8, 3, 1.0)
         if (sample.startsWith(0xFF, 0xFE)) return DetectedCharset(Charsets.UTF_16LE, 2, 1.0)
