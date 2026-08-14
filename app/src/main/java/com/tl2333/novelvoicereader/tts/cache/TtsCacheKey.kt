@@ -2,14 +2,12 @@ package com.tl2333.novelvoicereader.tts.cache
 
 import com.tl2333.novelvoicereader.filesystem.Sha256
 import com.tl2333.novelvoicereader.tts.tokenizer.NarrationStyle
-import java.math.BigDecimal
 
 data class TtsCacheKeyInput(
     val kokoroModelCommit: String,
     val sherpaVersion: String,
     val normalizedText: String,
     val voiceSid: Int,
-    val speed: Float,
     val style: NarrationStyle,
     val tokenizerVersion: String,
 )
@@ -20,14 +18,12 @@ object TtsCacheKey {
         require(input.sherpaVersion.isNotBlank())
         require(input.normalizedText.isNotBlank())
         require(input.voiceSid >= 0)
-        require(input.speed.isFinite() && input.speed > 0f)
         require(input.tokenizerVersion.isNotBlank())
         val canonical = listOf(
             input.kokoroModelCommit.trim(),
             input.sherpaVersion.trim(),
             input.normalizedText,
             input.voiceSid.toString(),
-            BigDecimal(input.speed.toString()).stripTrailingZeros().toPlainString(),
             input.style.name.lowercase(),
             input.tokenizerVersion.trim(),
         ).joinToString(separator = "\u0000")

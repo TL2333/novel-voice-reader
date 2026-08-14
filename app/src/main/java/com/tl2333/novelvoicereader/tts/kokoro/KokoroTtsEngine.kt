@@ -342,7 +342,6 @@ class KokoroTtsEngine internal constructor(
         )
         val parameters = SynthesisParameters(
             sid = currentSettings.effectiveVoiceSid,
-            speed = currentSettings.effectiveSpeed,
             style = stylePlan.style,
             styleSpeed = stylePlan.parameters.speed,
             gain = stylePlan.parameters.gain,
@@ -356,7 +355,6 @@ class KokoroTtsEngine internal constructor(
                     sherpaVersion = BuildConfig.SHERPA_ONNX_VERSION,
                     normalizedText = spokenText,
                     voiceSid = parameters.sid,
-                    speed = currentSettings.effectiveSpeed.toFloat(),
                     style = stylePlan.style,
                     tokenizerVersion = TOKENIZER_VERSION,
                 ),
@@ -472,7 +470,6 @@ class KokoroTtsEngine internal constructor(
         val nativeSegments = splitForNative(spokenText)
         val parameters = SynthesisParameters(
             sid = work.voiceSid,
-            speed = work.speed,
             style = stylePlan.style,
             styleSpeed = stylePlan.parameters.speed,
             gain = stylePlan.parameters.gain,
@@ -600,7 +597,7 @@ class KokoroTtsEngine internal constructor(
                 text = text,
                 config = GenerationConfig(
                     silenceScale = (DEFAULT_SILENCE_SCALE * parameters.pauseMultiplier).coerceAtLeast(0f),
-                    speed = (parameters.speed.toFloat() * parameters.styleSpeed).coerceAtLeast(0.05f),
+                    speed = parameters.styleSpeed.coerceIn(0.85f, 1.15f),
                     sid = parameters.sid,
                 ),
             )
@@ -935,7 +932,6 @@ class KokoroTtsEngine internal constructor(
 
     private data class SynthesisParameters(
         val sid: Int,
-        val speed: Double,
         val style: NarrationStyle,
         val styleSpeed: Float,
         val gain: Float,

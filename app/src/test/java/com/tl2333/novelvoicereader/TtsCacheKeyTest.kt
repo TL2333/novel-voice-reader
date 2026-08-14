@@ -12,7 +12,6 @@ class TtsCacheKeyTest {
         sherpaVersion = "1.13.4",
         normalizedText = "夜色渐渐沉了下来。",
         voiceSid = 3,
-        speed = 1f,
         style = NarrationStyle.NEUTRAL,
         tokenizerVersion = "1",
     )
@@ -23,8 +22,14 @@ class TtsCacheKeyTest {
         assertThat(first).matches("[0-9a-f]{64}")
         assertThat(TtsCacheKey.create(base)).isEqualTo(first)
         assertThat(TtsCacheKey.create(base.copy(voiceSid = 58))).isNotEqualTo(first)
-        assertThat(TtsCacheKey.create(base.copy(speed = 1.1f))).isNotEqualTo(first)
         assertThat(TtsCacheKey.create(base.copy(style = NarrationStyle.SAD))).isNotEqualTo(first)
         assertThat(TtsCacheKey.create(base.copy(normalizedText = base.normalizedText + "！"))).isNotEqualTo(first)
+    }
+
+    @Test
+    fun playbackSpeedDoesNotChangeTheCacheKey() {
+        val keyAtOneX = TtsCacheKey.create(base)
+        val keyAtTwoX = TtsCacheKey.create(base)
+        assertThat(keyAtTwoX).isEqualTo(keyAtOneX)
     }
 }
