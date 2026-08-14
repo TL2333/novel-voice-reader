@@ -5,6 +5,7 @@ package com.tl2333.novelvoicereader.tts.kokoro
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioManager
+import android.media.PlaybackParams
 import android.media.AudioTrack
 import com.tl2333.novelvoicereader.BuildConfig
 import com.tl2333.novelvoicereader.tts.cache.TtsAudioCache
@@ -164,7 +165,9 @@ class KokoroTtsEngine internal constructor(
 
     override fun submitPreferences(preferences: KokoroTtsPreferences) {
         check(!isClosed) { "Engine is closed." }
-        _settings.value = settingsResolver.settings(preferences)
+        val updated = settingsResolver.settings(preferences)
+        _settings.value = updated
+        activeAudioTrack?.let { track -> runCatching { applyPlaybackSpeed(track, updated.effectiveSpeed) } }
     }
 
     override fun setListener(listener: TtsEngine.Listener<KokoroTtsError>?) {
@@ -689,12 +692,19 @@ class KokoroTtsEngine internal constructor(
             track.release()
             error("AudioTrack did not initialize")
         }
+        applyPlaybackSpeed(track, settings.value.effectiveSpeed)
 
         activeAudioTrack = track
         synchronized(pauseMonitor) {
             if (!isPaused) track.play()
         }
         return track
+    }
+
+    /** Media3's Readium Player adapter owns this value; native synthesis remains at profile speed. */
+    private fun applyPlaybackSpeed(track: AudioTrack, speed: Double) {
+        require(speed in KokoroTtsPreferences.MIN_SPEED..KokoroTtsPreferences.MAX_SPEED)
+        track.playbackParams = PlaybackParams().setSpeed(speed.toFloat()).setPitch(1f)
     }
 
     private fun writeSamples(

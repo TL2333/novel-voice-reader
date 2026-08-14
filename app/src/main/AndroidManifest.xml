@@ -2,9 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Media3's generic player manifest requests network state. This app deliberately has no
-         network stack, so remove both network permissions from the final merged manifest. -->
-    <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
+    <!-- INTERNET is used only by content/web for explicit user URL imports. -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" tools:node="remove" />
 
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -25,6 +24,14 @@
 
         <activity
             android:name=".reader.ReaderActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".reader.GenericDocumentReaderActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".reader.PdfDocumentReaderActivity"
             android:exported="false" />
 
         <activity

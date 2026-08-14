@@ -23,3 +23,9 @@ Assemble 3-8 adjacent segments, normally 12-24 seconds of source media. Append o
 Cache key: SHA-256 of model version, voice ID, normalized text, synthesis profile, and normalizer version. Playback speed is excluded. Cache capacity is 4 GiB at >=32 GiB free, 2 GiB at >=16 GiB, 1 GiB at >=8 GiB, otherwise at most 512 MiB and at most 5% of free space while reserving 4 GiB. LRU never removes protected in-use files.
 
 Temporary PCM is converted and written immediately. HIGH_MEMORY hard budget is 96 MiB and normal target is below 64 MiB.
+
+## PDF reading order and scan detection
+
+Embedded PDF text is retained as positioned fragments rather than flattened through a page-wide text accessor. For pages with coordinates, sort by y/x for one-column content; when left/right clusters each contain at least two fragments and their horizontal ranges separate, emit the left cluster before the right cluster. Full-width fragments are retained around column content. Repeated normalized strings in the top or bottom 13% of at least 60% of three or more pages are treated as headers, footers, or page numbers and omitted. A trailing ASCII hyphen is joined only when the next positioned fragment begins with a lower-case Latin letter.
+
+Consecutive pages with fewer than 40 embedded characters and reported image content are classified `LIKELY_SCANNED_PDF`. Android versions below API 35 also take the local OCR path because the platform embedded-text API is unavailable. Pages are rendered with a 2048-pixel long edge and passed to bundled Chinese and Latin ML Kit recognizers; the richer result is mapped back to PDF coordinates. Text, bounds, page, source, and confidence enter the common reading-order and canonical-document pipeline.

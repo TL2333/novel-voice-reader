@@ -16,6 +16,10 @@ data class BookEntity(
     val mediaType: String,
     val createdAt: Long,
     val lastReadAt: Long?,
+    /** Legacy rows default to EPUB; new rows use the canonical SourceType name. */
+    val sourceType: String = "EPUB",
+    val canonicalDocumentPath: String? = null,
+    val sourceDetail: String? = null,
 )
 
 @Entity(

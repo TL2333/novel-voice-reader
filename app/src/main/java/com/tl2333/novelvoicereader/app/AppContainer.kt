@@ -3,6 +3,19 @@ package com.tl2333.novelvoicereader.app
 import android.app.Application
 import android.content.Intent
 import android.net.Uri
+import android.provider.OpenableColumns
+import com.tl2333.novelvoicereader.content.docx.DocxImporter
+import com.tl2333.novelvoicereader.content.docx.LegacyDocImporter
+import com.tl2333.novelvoicereader.content.docx.LegacyDocUnsupportedException
+import com.tl2333.novelvoicereader.content.model.CanonicalDocument
+import com.tl2333.novelvoicereader.content.model.CanonicalDocumentCodec
+import com.tl2333.novelvoicereader.content.model.SourceType
+import com.tl2333.novelvoicereader.content.pdf.PdfImporter
+import com.tl2333.novelvoicereader.content.txt.TxtImporter
+import com.tl2333.novelvoicereader.content.web.WebImporter
+import com.tl2333.novelvoicereader.content.web.WebContentKind
+import com.tl2333.novelvoicereader.content.web.WebImportResult
+import com.tl2333.novelvoicereader.content.web.WebSnapshotRepository
 import com.tl2333.novelvoicereader.data.database.BookEntity
 import com.tl2333.novelvoicereader.data.database.BookRepository
 import com.tl2333.novelvoicereader.data.database.BookmarkRepository
@@ -11,6 +24,7 @@ import com.tl2333.novelvoicereader.data.database.NovelVoiceDatabase
 import com.tl2333.novelvoicereader.data.database.ReadingProgressRepository
 import com.tl2333.novelvoicereader.data.preferences.ReaderTtsPreferencesStore
 import com.tl2333.novelvoicereader.playback.NarrationMediaServiceClient
+import com.tl2333.novelvoicereader.narration.DeviceTtsBenchmark
 import com.tl2333.novelvoicereader.reader.PublicationManager
 import com.tl2333.novelvoicereader.reader.ReaderDependencies
 import com.tl2333.novelvoicereader.reader.ReaderNarrationFactory
@@ -20,8 +34,13 @@ import com.tl2333.novelvoicereader.tts.cache.TtsAudioCache
 import com.tl2333.novelvoicereader.ui.diagnostics.DiagnosticsController
 import com.tl2333.novelvoicereader.ui.diagnostics.UnavailableDiagnosticsController
 import java.io.File
+import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 
 data class KokoroIntegration(
@@ -75,7 +94,12 @@ class AppContainer(
                 Intent.FLAG_GRANT_READ_URI_PERMISSION,
             )
         }
-        return importUri(uri)
+        val source = sourceInfo(uri)
+        return when (source.type) {
+            SourceType.EPUB -> importUri(uri)
+            SourceType.TXT, SourceType.PDF, SourceType.DOCX, SourceType.DOC -> importCanonicalUri(uri, source)
+            else -> LibraryActionResult(false, "暂不支持该文件格式：${source.displayName}")
+        }
     }
 
     suspend fun importBuiltInTestBook(): LibraryActionResult = withContext(Dispatchers.IO) {
@@ -95,6 +119,19 @@ class AppContainer(
         }
     }
 
+    suspend fun importWebUrl(url: String): LibraryActionResult = withContext(Dispatchers.IO) {
+        try {
+            when (val result = WebImporter(application).import(url)) {
+                is WebImportResult.Article -> saveWebArticle(result)
+                is WebImportResult.DirectDocument -> saveWebDirectDocument(result)
+            }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            LibraryActionResult(false, "网页导入失败：${error.message.orEmpty()}")
+        }
+    }
+
     suspend fun deleteBook(bookId: String): LibraryActionResult = withContext(Dispatchers.IO) {
         val book = books.get(bookId)
             ?: return@withContext LibraryActionResult(false, "找不到要删除的书籍。")
@@ -105,10 +142,11 @@ class AppContainer(
         if (cover != null && !publicationManager.deleteCover(cover)) {
             return@withContext LibraryActionResult(false, "无法删除本书封面文件，书籍未删除。")
         }
-        val epub = File(book.epubPath)
-        if (publicationManager.isPrivateBook(epub) && epub.exists() && !epub.delete()) {
-            return@withContext LibraryActionResult(false, "无法删除私有 EPUB 文件。")
+        val source = File(book.epubPath)
+        if (isPrivateDocument(source) && source.exists() && !source.delete()) {
+            return@withContext LibraryActionResult(false, "无法删除应用私有文档文件。")
         }
+        book.canonicalDocumentPath?.let(::File)?.takeIf(::isPrivateDocument)?.delete()
         books.delete(bookId)
         LibraryActionResult(true, "已删除《${book.title}》。")
     }
@@ -150,6 +188,37 @@ class AppContainer(
             narrationCacheLimitBytes = AudioCacheCapacityPolicy.capacityFor(application.cacheDir.usableSpace),
             availableBytes = application.filesDir.usableSpace,
         )
+    }
+
+    suspend fun exportNarrationTraces(destination: Uri): LibraryActionResult = withContext(Dispatchers.IO) {
+        val traces = File(application.filesDir, "narration-traces").listFiles()
+            ?.filter { it.isFile && it.extension == "jsonl" }
+            ?.sortedBy(File::lastModified)
+            .orEmpty()
+        if (traces.isEmpty()) return@withContext LibraryActionResult(false, "尚无可导出的朗读诊断日志。")
+        try {
+            application.contentResolver.openOutputStream(destination, "w")?.buffered()?.use { output ->
+                traces.forEach { trace -> trace.inputStream().buffered().use { it.copyTo(output, 64 * 1024) } }
+            } ?: return@withContext LibraryActionResult(false, "无法打开导出位置。")
+            LibraryActionResult(true, "已导出 ${traces.size} 个朗读会话日志。")
+        } catch (error: Exception) {
+            LibraryActionResult(false, "朗读日志导出失败：${error.message.orEmpty()}")
+        }
+    }
+
+    suspend fun runDeviceTtsBenchmark(): LibraryActionResult = withContext(Dispatchers.IO) {
+        try {
+            val voiceSid = preferences.preferences.first().defaultVoiceSid
+            val result = DeviceTtsBenchmark.run(application, voiceSid)
+            LibraryActionResult(
+                true,
+                "性能测试完成：p50=${"%.3f".format(result.statistics.p50)}，p95=${"%.3f".format(result.statistics.p95)}。",
+            )
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            LibraryActionResult(false, "朗读性能测试失败：${error.message.orEmpty()}")
+        }
     }
 
     private suspend fun importUri(uri: Uri): LibraryActionResult = when (
@@ -198,6 +267,200 @@ class AppContainer(
         }
     }
 
+    private suspend fun importCanonicalUri(uri: Uri, source: SourceInfo): LibraryActionResult = withContext(Dispatchers.IO) {
+        val stagingDirectory = File(application.cacheDir, "document-import").apply { mkdirs() }
+        val staged = File(stagingDirectory, ".${UUID.randomUUID()}.${source.extension}")
+        try {
+            application.contentResolver.openInputStream(uri)?.use { input ->
+                staged.outputStream().buffered(64 * 1024).use { output -> input.copyTo(output, 64 * 1024) }
+            } ?: return@withContext LibraryActionResult(false, "无法读取所选文档。")
+            if (staged.length() <= 0L) return@withContext LibraryActionResult(false, "所选文档为空。")
+            val canonical = when (source.type) {
+                SourceType.TXT -> TxtImporter().import(staged, uri.toString(), source.displayName.substringBeforeLast('.'))
+                SourceType.DOCX -> DocxImporter().import(staged, uri.toString(), source.displayName.substringBeforeLast('.'))
+                SourceType.DOC -> LegacyDocImporter().import(staged)
+                SourceType.PDF -> PdfImporter().import(staged, uri.toString(), source.displayName.substringBeforeLast('.'))
+                else -> error("Unsupported canonical source ${source.type}")
+            }
+            saveCanonicalImport(staged, source, canonical)
+        } catch (error: LegacyDocUnsupportedException) {
+            LibraryActionResult(false, error.message.orEmpty())
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            LibraryActionResult(false, "${source.type.name} 导入失败：${error.message.orEmpty()}")
+        } finally {
+            staged.delete()
+        }
+    }
+
+    private suspend fun saveCanonicalImport(
+        staged: File,
+        source: SourceInfo,
+        canonical: CanonicalDocument,
+    ): LibraryActionResult {
+        val existing = books.getBySha256(canonical.contentHash)
+        if (existing != null) return LibraryActionResult(true, "《${existing.title}》已在书架中。", existing.id)
+        val documentDirectory = File(application.filesDir, "documents").apply { mkdirs() }
+        val canonicalDirectory = File(application.filesDir, "canonical").apply { mkdirs() }
+        val destination = File(documentDirectory, "${canonical.contentHash}.${source.extension}")
+        val canonicalFile = File(canonicalDirectory, "${canonical.contentHash}.json")
+        moveAtomically(staged, destination)
+        try {
+            CanonicalDocumentCodec.writeAtomically(canonical, canonicalFile)
+            books.save(
+                BookEntity(
+                    id = canonical.id,
+                    title = canonical.title,
+                    author = canonical.author,
+                    coverPath = null,
+                    epubPath = destination.absolutePath,
+                    epubSha256 = canonical.contentHash,
+                    mediaType = source.mediaType,
+                    createdAt = System.currentTimeMillis(),
+                    lastReadAt = null,
+                    sourceType = source.type.name,
+                    canonicalDocumentPath = canonicalFile.absolutePath,
+                    sourceDetail = canonical.sourceDetail(),
+                ),
+            )
+            return LibraryActionResult(true, "已导入《${canonical.title}》。", canonical.id)
+        } catch (error: Exception) {
+            destination.delete()
+            canonicalFile.delete()
+            throw error
+        }
+    }
+
+    private suspend fun saveWebArticle(result: WebImportResult.Article): LibraryActionResult {
+        val snapshot = result.snapshot
+        books.save(
+            BookEntity(
+                id = snapshot.id,
+                title = snapshot.title,
+                author = snapshot.author,
+                coverPath = null,
+                epubPath = snapshot.htmlPath,
+                epubSha256 = snapshot.contentHash,
+                mediaType = "text/html",
+                createdAt = snapshot.fetchedAt,
+                lastReadAt = null,
+                sourceType = SourceType.WEB.name,
+                canonicalDocumentPath = snapshot.canonicalDocumentPath,
+                sourceDetail = runCatching { java.net.URI(snapshot.canonicalUrl).host }.getOrNull(),
+            ),
+        )
+        return LibraryActionResult(
+            true,
+            if (result.usedDynamicFallback) "已通过动态页面快照导入《${snapshot.title}》。" else "已导入网页《${snapshot.title}》。",
+            snapshot.id,
+        )
+    }
+
+    private suspend fun saveWebDirectDocument(result: WebImportResult.DirectDocument): LibraryActionResult {
+        val snapshotRepository = WebSnapshotRepository(File(application.filesDir, "web-snapshots"))
+        val hash = com.tl2333.novelvoicereader.filesystem.Sha256.hash(result.bytes)
+        if (result.kind == WebContentKind.EPUB) {
+            val snapshotFile = snapshotRepository.createRawDownload(
+                hash,
+                result.requestedUrl,
+                result.finalUrl,
+                result.fetchedAt,
+                result.kind,
+                result.bytes,
+            )
+            return importUri(Uri.fromFile(snapshotFile))
+        }
+        val remoteName = runCatching { java.net.URI(result.finalUrl).path.substringAfterLast('/').takeIf(String::isNotBlank) }.getOrNull()
+        val source = when (result.kind) {
+            WebContentKind.TXT -> SourceInfo(remoteName ?: "download.txt", "txt", "text/plain", SourceType.TXT)
+            WebContentKind.DOCX -> SourceInfo(remoteName ?: "download.docx", "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", SourceType.DOCX)
+            WebContentKind.PDF -> SourceInfo(remoteName ?: "download.pdf", "pdf", "application/pdf", SourceType.PDF)
+            else -> return LibraryActionResult(false, "该直链格式无法交给文档导入器。")
+        }
+        val staging = File(application.cacheDir, "web-document-import/.${UUID.randomUUID()}.${source.extension}")
+        staging.parentFile?.mkdirs()
+        try {
+            staging.writeBytes(result.bytes)
+            val canonical = when (source.type) {
+                SourceType.TXT -> TxtImporter().import(staging, result.finalUrl, source.displayName.substringBeforeLast('.'))
+                SourceType.DOCX -> DocxImporter().import(staging, result.finalUrl, source.displayName.substringBeforeLast('.'))
+                SourceType.PDF -> PdfImporter().import(staging, result.finalUrl, source.displayName.substringBeforeLast('.'))
+                else -> error("Unsupported direct import")
+            }
+            books.getBySha256(canonical.contentHash)?.let { existing ->
+                return LibraryActionResult(true, "《${existing.title}》已在书架中。", existing.id)
+            }
+            val snapshot = snapshotRepository.createDirect(
+                result.requestedUrl,
+                result.finalUrl,
+                result.fetchedAt,
+                result.kind,
+                result.bytes,
+                canonical,
+            )
+            books.save(
+                BookEntity(
+                    id = canonical.id,
+                    title = canonical.title,
+                    author = canonical.author,
+                    coverPath = null,
+                    epubPath = snapshot.htmlPath,
+                    epubSha256 = canonical.contentHash,
+                    mediaType = source.mediaType,
+                    createdAt = result.fetchedAt,
+                    lastReadAt = null,
+                    sourceType = source.type.name,
+                    canonicalDocumentPath = snapshot.canonicalDocumentPath,
+                    sourceDetail = canonical.sourceDetail(),
+                ),
+            )
+            return LibraryActionResult(true, "已从直链导入《${canonical.title}》。", canonical.id)
+        } finally {
+            staging.delete()
+        }
+    }
+
+    private fun sourceInfo(uri: Uri): SourceInfo {
+        var displayName: String? = null
+        application.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+            if (cursor.moveToFirst()) displayName = cursor.getString(0)
+        }
+        val name = displayName ?: uri.lastPathSegment ?: "document"
+        val extension = name.substringAfterLast('.', "").lowercase()
+        val mediaType = application.contentResolver.getType(uri).orEmpty()
+        val type = when {
+            extension == "epub" || mediaType == "application/epub+zip" -> SourceType.EPUB
+            extension == "txt" || mediaType.startsWith("text/plain") -> SourceType.TXT
+            extension == "docx" || mediaType.contains("wordprocessingml") -> SourceType.DOCX
+            extension == "doc" || mediaType == "application/msword" -> SourceType.DOC
+            extension == "pdf" || mediaType == "application/pdf" -> SourceType.PDF
+            else -> SourceType.WEB
+        }
+        return SourceInfo(name, extension.ifBlank { type.name.lowercase() }, mediaType.ifBlank { "application/octet-stream" }, type)
+    }
+
+    private fun moveAtomically(source: File, destination: File) {
+        destination.parentFile?.mkdirs()
+        try {
+            Files.move(source.toPath(), destination.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+        } catch (_: AtomicMoveNotSupportedException) {
+            Files.move(source.toPath(), destination.toPath(), StandardCopyOption.REPLACE_EXISTING)
+        }
+    }
+
+    private fun isPrivateDocument(file: File): Boolean {
+        val root = application.filesDir.canonicalFile.toPath()
+        return runCatching { file.canonicalFile.toPath().startsWith(root) }.getOrDefault(false)
+    }
+
+    private data class SourceInfo(
+        val displayName: String,
+        val extension: String,
+        val mediaType: String,
+        val type: SourceType,
+    )
+
     private fun cleanupFailedImport(imported: PublicationManager.ImportedEpub) {
         if (publicationManager.isPrivateBook(imported.file)) imported.file.delete()
         imported.coverPath?.let { publicationManager.deleteCover(File(it)) }
@@ -210,6 +473,14 @@ class AppContainer(
     }
 
     private fun narrationCacheDirectory(): File = File(application.cacheDir, "narration")
+
+    private fun CanonicalDocument.sourceDetail(): String? = when (sourceType) {
+        SourceType.TXT -> metadata["characterCount"]?.let { "$it 字" }
+        SourceType.PDF -> metadata["pageCount"]?.let { "$it 页" }
+        SourceType.DOCX -> metadata["paragraphCount"]?.let { "$it 段" }
+        SourceType.WEB -> runCatching { java.net.URI(sourceUri).host }.getOrNull()
+        else -> null
+    }
 
     private fun directorySize(directory: File): Long =
         if (!directory.isDirectory) 0L else directory.walkTopDown()

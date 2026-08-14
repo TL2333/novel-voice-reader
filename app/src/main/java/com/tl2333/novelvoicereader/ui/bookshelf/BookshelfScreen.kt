@@ -48,10 +48,12 @@ fun BookshelfScreen(
     importing: Boolean,
     onImportDocument: (Uri) -> Unit,
     onImportBuiltIn: () -> Unit,
+    onImportUrl: (String) -> Unit,
     onOpenBook: (BookEntity) -> Unit,
     onOpenSettings: () -> Unit,
 ) {
     var search by remember { mutableStateOf("") }
+    var urlInput by remember { mutableStateOf("") }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let(onImportDocument)
     }
@@ -82,6 +84,23 @@ fun BookshelfScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                OutlinedTextField(
+                    value = urlInput,
+                    onValueChange = { urlInput = it },
+                    modifier = Modifier.weight(1f),
+                    label = { Text("粘贴网页链接") },
+                    singleLine = true,
+                )
+                Button(
+                    enabled = !importing && urlInput.isNotBlank(),
+                    onClick = { onImportUrl(urlInput.trim()) },
+                ) { Text("导入") }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Button(
                     modifier = Modifier.weight(1f),
                     enabled = !importing,
@@ -89,13 +108,15 @@ fun BookshelfScreen(
                         launcher.launch(
                             arrayOf(
                                 "application/epub+zip",
-                                "application/zip",
-                                "application/octet-stream",
+                                "text/plain",
+                                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                "application/msword",
+                                "application/pdf",
                                 "*/*",
                             ),
                         )
                     },
-                ) { Text("导入 EPUB") }
+                ) { Text("导入文档") }
                 Button(
                     modifier = Modifier.weight(1f),
                     enabled = !importing,
@@ -104,7 +125,7 @@ fun BookshelfScreen(
                 if (importing) CircularProgressIndicator(Modifier.size(24.dp))
             }
             if (visibleBooks.isEmpty()) {
-                Text(if (search.isBlank()) "书架为空。请导入 EPUB 或内置测试书。" else "没有匹配的书籍。")
+                Text(if (search.isBlank()) "书架为空。请导入 EPUB、TXT 或 DOCX。" else "没有匹配的书籍。")
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
@@ -118,6 +139,7 @@ fun BookshelfScreen(
                                 supportingContent = {
                                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                         Text(book.author ?: "未知作者")
+                                        Text(listOfNotNull(book.sourceType, book.sourceDetail).joinToString(" · "))
                                         Text("阅读进度 ${"%.1f".format(progression * 100)}%")
                                         LinearProgressIndicator(
                                             progress = { progression.toFloat() },

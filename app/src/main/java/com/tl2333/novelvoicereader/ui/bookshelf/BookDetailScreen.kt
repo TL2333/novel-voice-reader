@@ -48,7 +48,8 @@ fun BookDetailScreen(
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(book.title)
                     Text("作者：${book.author ?: "未知"}")
-                    Text("EPUB：${formatBytes(File(book.epubPath).takeIf(File::isFile)?.length())}")
+                    Text("格式：${listOfNotNull(book.sourceType, book.sourceDetail).joinToString(" · ")}")
+                    Text("文档：${formatBytes(File(book.epubPath).takeIf(File::isFile)?.length())}")
                     Text("阅读进度：${"%.1f".format((progress?.totalProgression ?: 0.0) * 100)}%")
                 }
             }
@@ -56,7 +57,7 @@ fun BookDetailScreen(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !busy && File(book.epubPath).isFile,
                 onClick = { onRead(book) },
-            ) { Text(if (File(book.epubPath).isFile) "打开阅读" else "EPUB 文件缺失") }
+            ) { Text(if (File(book.epubPath).isFile) "打开阅读" else "文档文件缺失") }
             Button(modifier = Modifier.fillMaxWidth(), enabled = !busy, onClick = { onBookmarks(book) }) {
                 Text("书签列表")
             }
@@ -73,7 +74,7 @@ fun BookDetailScreen(
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
             title = { Text("删除《${book.title}》？") },
-            text = { Text("将删除私有 EPUB 与本书朗读缓存，同时清除关联进度和书签。") },
+            text = { Text("将删除应用私有文档与本书朗读缓存，同时清除关联进度和书签。") },
             confirmButton = {
                 TextButton(onClick = {
                     confirmDelete = false

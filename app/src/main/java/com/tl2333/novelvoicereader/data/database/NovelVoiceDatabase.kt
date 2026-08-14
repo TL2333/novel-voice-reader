@@ -13,7 +13,7 @@ import androidx.room.migration.Migration
         BookmarkEntity::class,
         NarrationCacheEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 abstract class NovelVoiceDatabase : RoomDatabase() {
@@ -26,7 +26,15 @@ abstract class NovelVoiceDatabase : RoomDatabase() {
         const val FILE_NAME = "novel-voice-reader.db"
 
         /** Add explicit migrations here whenever [version] is incremented. */
-        val MIGRATIONS: Array<Migration> = emptyArray()
+        val MIGRATIONS: Array<Migration> = arrayOf(
+            object : Migration(1, 2) {
+                override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                    db.execSQL("ALTER TABLE books ADD COLUMN sourceType TEXT NOT NULL DEFAULT 'EPUB'")
+                    db.execSQL("ALTER TABLE books ADD COLUMN canonicalDocumentPath TEXT")
+                    db.execSQL("ALTER TABLE books ADD COLUMN sourceDetail TEXT")
+                }
+            },
+        )
 
         fun open(context: Context): NovelVoiceDatabase =
             Room.databaseBuilder(context, NovelVoiceDatabase::class.java, FILE_NAME)

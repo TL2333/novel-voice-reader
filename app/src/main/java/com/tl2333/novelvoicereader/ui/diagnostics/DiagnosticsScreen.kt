@@ -28,6 +28,8 @@ fun DiagnosticsScreen(
     onSelectVoice: () -> Unit,
     onGenerateTestSpeech: () -> Unit,
     onStopAudio: () -> Unit,
+    onExportTrace: () -> Unit,
+    onBenchmark: () -> Unit,
 ) {
     LaunchedEffect(Unit) { onRefresh() }
     ScreenScaffold(title = "离线朗读诊断", onBack = onBack) { padding ->
@@ -52,6 +54,12 @@ fun DiagnosticsScreen(
                 enabled = state.canStopAudio,
                 onClick = onStopAudio,
             ) { Text("停止测试语音") }
+            Button(modifier = Modifier.fillMaxWidth(), onClick = onExportTrace) {
+                Text("导出朗读诊断日志")
+            }
+            Button(modifier = Modifier.fillMaxWidth(), enabled = !state.busy, onClick = onBenchmark) {
+                Text("朗读性能测试（20 段）")
+            }
             if (!state.canGenerateTestSpeech) Text("测试语音不可用：${state.errorCode ?: state.message}")
             if (state.busy) CircularProgressIndicator()
         }

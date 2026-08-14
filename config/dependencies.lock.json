@@ -3,13 +3,13 @@
   "generatedAt": "2026-08-14",
   "dependencies": {
     "readium": { "version": "3.2.0", "source": ".codex/vendor/readium-kotlin-3.2.0" },
-    "media3": { "version": "1.10.0", "source": "gradle/libs.versions.toml" },
+    "media3": { "version": "1.10.0", "modules": ["media3-common", "media3-session", "media3-exoplayer"], "source": "gradle/libs.versions.toml" },
     "sherpaOnnx": { "version": "1.13.4", "sourceCommit": "142807252687d81b40d6315f23470a1512a00de3", "lock": "config/sherpa-onnx.lock.json" },
     "kokoro": { "version": "Kokoro-82M-v1.1-zh INT8", "sourceCommit": "155831f1b4ba23b1f5c058be6a61df90cefb2a37", "lock": "config/kokoro.lock.json" },
-    "pdfEngine": { "version": null, "status": "not-selected" },
-    "ocr": { "version": null, "status": "not-selected" },
-    "okHttp": { "version": null, "status": "not-selected" },
-    "jsoup": { "version": null, "status": "not-selected" },
-    "docParser": { "version": null, "status": "built-in-safe-ooxml-parser-planned" }
+    "pdfEngine": { "version": "Android SDK 35+ PdfRenderer text API / API 26+ PdfRenderer display", "source": "local Android SDK 36 android.jar signatures" },
+    "ocr": { "version": "16.0.1", "modules": ["com.google.mlkit:text-recognition", "com.google.mlkit:text-recognition-chinese"], "model": "bundled", "source": "Google ML Kit official Android documentation" },
+    "okHttp": { "version": null, "status": "not-selected-platform-HttpURLConnection-used-in-content-web" },
+    "jsoup": { "version": "1.22.2", "source": "resolved through Readium 3.2.0 and pinned explicitly" },
+    "docParser": { "version": "repository-v1", "status": "built-in-safe-read-only-ooxml-zip-sax-parser" }
   }
 }

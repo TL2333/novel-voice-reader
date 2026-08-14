@@ -1,6 +1,8 @@
 package com.tl2333.novelvoicereader.app
 
 import android.content.Context
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -25,6 +27,8 @@ import com.tl2333.novelvoicereader.data.database.BookEntity
 import com.tl2333.novelvoicereader.data.preferences.ReaderTextAlignment
 import com.tl2333.novelvoicereader.data.preferences.ReaderTtsPreferences
 import com.tl2333.novelvoicereader.reader.ReaderActivity
+import com.tl2333.novelvoicereader.reader.GenericDocumentReaderActivity
+import com.tl2333.novelvoicereader.reader.PdfDocumentReaderActivity
 import com.tl2333.novelvoicereader.tts.tokenizer.NarrationStyle
 import com.tl2333.novelvoicereader.ui.about.AboutScreen
 import com.tl2333.novelvoicereader.ui.bookmarks.BookmarksScreen
@@ -63,6 +67,16 @@ fun AppNavigation(container: AppContainer) {
     val navController = rememberNavController()
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
+    val exportTrace = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/x-ndjson"),
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                val result = container.exportNarrationTraces(uri)
+                snackbar.showSnackbar(result.message)
+            }
+        }
+    }
     val books by container.books.observeAll().collectAsState(initial = emptyList())
     val progressRows by container.readingProgress.observeAll().collectAsState(initial = emptyList())
     val preferences by container.preferences.preferences.collectAsState(initial = ReaderTtsPreferences())
@@ -195,6 +209,9 @@ fun AppNavigation(container: AppContainer) {
                     },
                     onImportBuiltIn = {
                         runLibraryAction(action = { container.importBuiltInTestBook() })
+                    },
+                    onImportUrl = { url ->
+                        runLibraryAction(action = { container.importWebUrl(url) })
                     },
                     onOpenBook = { navController.navigate(Routes.book(it.id)) },
                     onOpenSettings = { navController.navigate(Routes.SETTINGS) },
@@ -345,6 +362,12 @@ fun AppNavigation(container: AppContainer) {
                     onSelectVoice = { navController.navigate(Routes.VOICES) },
                     onGenerateTestSpeech = { diagnosticsAction(container.diagnosticsController::generateTestSpeech) },
                     onStopAudio = container.diagnosticsController::stopAudio,
+                    onExportTrace = { exportTrace.launch("novel-voice-narration-trace.jsonl") },
+                    onBenchmark = {
+                        scope.launch {
+                            snackbar.showSnackbar(container.runDeviceTtsBenchmark().message)
+                        }
+                    },
                 )
             }
             composable(Routes.ABOUT) { AboutScreen(onBack = { navController.navigateUp() }) }
@@ -360,6 +383,14 @@ private fun launchReader(
     book: BookEntity,
     initialLocatorJson: String? = null,
 ) {
+    if (book.sourceType == "PDF") {
+        context.startActivity(PdfDocumentReaderActivity.createIntent(context, book.id, initialLocatorJson))
+        return
+    }
+    if (book.sourceType != "EPUB") {
+        context.startActivity(GenericDocumentReaderActivity.createIntent(context, book.id, initialLocatorJson))
+        return
+    }
     context.startActivity(
         ReaderActivity.createIntent(
             context = context,

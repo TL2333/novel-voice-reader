@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.os.IBinder
+import android.os.DeadObjectException
 import com.tl2333.novelvoicereader.tts.cache.readMonoPcm16Wav
 import com.tl2333.novelvoicereader.tts.kokoro.KokoroGeneratedAudio
 import com.tl2333.novelvoicereader.tts.kokoro.KokoroGenerationRequest
@@ -17,6 +18,8 @@ import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+
+class TtsProcessDiedException(cause: Throwable? = null) : IOException("TTS engine process died", cause)
 
 class TtsInferenceClient private constructor(
     private val context: Context,
@@ -33,18 +36,23 @@ class TtsInferenceClient private constructor(
 
     override fun generate(text: String, request: KokoroGenerationRequest): KokoroGeneratedAudio {
         check(!released.get()) { "TTS client is released" }
-        check(!binderDied.get()) { "TTS engine process died" }
+        if (binderDied.get()) throw TtsProcessDiedException()
         val directory = File(context.cacheDir, TtsInferenceService.IPC_DIRECTORY).apply { mkdirs() }
         val output = File(directory, "${UUID.randomUUID()}.wav")
         try {
-            val result = remote.synthesize(
-                UUID.randomUUID().toString(),
-                text,
-                request.voiceSid,
-                request.synthesisProfileSpeed,
-                request.silenceScale,
-                output.absolutePath,
-            )
+            val result = try {
+                remote.synthesize(
+                    UUID.randomUUID().toString(),
+                    text,
+                    request.voiceSid,
+                    request.synthesisProfileSpeed,
+                    request.silenceScale,
+                    output.absolutePath,
+                )
+            } catch (error: DeadObjectException) {
+                binderDied.set(true)
+                throw TtsProcessDiedException(error)
+            }
             checkResult(result.getBoolean(TtsInferenceService.KEY_SUCCESS), result.getString(TtsInferenceService.KEY_ERROR))
             val published = File(requireNotNull(result.getString(TtsInferenceService.KEY_PATH)))
             val audio = readMonoPcm16Wav(published)

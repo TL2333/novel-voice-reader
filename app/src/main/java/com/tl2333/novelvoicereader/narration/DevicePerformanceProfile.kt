@@ -29,6 +29,7 @@ object DevicePerformanceProfileDetector {
             availableMemoryBytes = info.availMem,
             memoryClassMb = manager.memoryClass,
             largeMemoryClassMb = manager.largeMemoryClass,
+            recentRtf = DeviceTtsBenchmark.load(context)?.statistics,
         )
     }
 }

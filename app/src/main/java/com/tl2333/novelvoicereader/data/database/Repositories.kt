@@ -4,6 +4,8 @@ import com.tl2333.novelvoicereader.tts.cache.CacheEntry
 import com.tl2333.novelvoicereader.tts.cache.LruCachePolicy
 import kotlinx.coroutines.flow.Flow
 import java.util.UUID
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
 
 class BookRepository(private val dao: BookDao) {
     fun observeAll(): Flow<List<BookEntity>> = dao.observeAll()
@@ -36,6 +38,19 @@ class ReadingProgressRepository(
         )
     }
 
+    suspend fun saveDocumentLocation(bookId: String, locationJson: String, totalProgression: Double) {
+        val canonical = Json.parseToJsonElement(locationJson).jsonObject.toString()
+        require(canonical.contains("\"sourceType\"")) { "DocumentLocation JSON must contain sourceType" }
+        dao.upsert(
+            ReadingProgressEntity(
+                bookId = bookId,
+                locatorJson = canonical,
+                totalProgression = totalProgression.coerceIn(0.0, 1.0),
+                updatedAt = clock(),
+            ),
+        )
+    }
+
     suspend fun delete(bookId: String) = dao.delete(bookId)
 }
 
@@ -58,6 +73,25 @@ class BookmarkRepository(
             id = id,
             bookId = bookId,
             locatorJson = LocatorJson.canonicalize(locatorJson),
+            label = label?.trim()?.takeIf(String::isNotEmpty),
+            createdAt = clock(),
+        )
+        dao.upsert(bookmark)
+        return bookmark
+    }
+
+    suspend fun saveDocumentLocation(
+        bookId: String,
+        locationJson: String,
+        label: String? = null,
+        id: String = idFactory(),
+    ): BookmarkEntity {
+        val canonical = Json.parseToJsonElement(locationJson).jsonObject.toString()
+        require(canonical.contains("\"sourceType\"")) { "DocumentLocation JSON must contain sourceType" }
+        val bookmark = BookmarkEntity(
+            id = id,
+            bookId = bookId,
+            locatorJson = canonical,
             label = label?.trim()?.takeIf(String::isNotEmpty),
             createdAt = clock(),
         )

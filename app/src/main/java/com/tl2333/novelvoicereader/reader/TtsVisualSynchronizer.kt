@@ -3,6 +3,11 @@
 package com.tl2333.novelvoicereader.reader
 
 import android.graphics.Color
+import com.tl2333.novelvoicereader.narration.NarrationController
+import com.tl2333.novelvoicereader.narration.NarrationEvent
+import com.tl2333.novelvoicereader.narration.NarrationIntent
+import com.tl2333.novelvoicereader.narration.NarrationPlaybackPort
+import com.tl2333.novelvoicereader.narration.NarrationSnapshot
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineScope
@@ -45,12 +50,22 @@ class TtsVisualSynchronizer(
         val playing: Boolean = false,
         val utterance: String? = null,
         val error: String? = null,
+        val narration: NarrationSnapshot = NarrationSnapshot(),
     )
 
     private val mutex = Mutex()
     private val mutableState = MutableStateFlow(State())
     private var navigator: ReaderNarrationNavigator? = null
     private var observerJobs: List<Job> = emptyList()
+    private val controller = NarrationController(object : NarrationPlaybackPort {
+        override fun setPlaybackSpeed(speed: Float) {
+            navigator?.asMedia3Player()?.setPlaybackSpeed(speed)
+        }
+
+        override fun play() { navigator?.play() }
+        override fun pause() { navigator?.pause() }
+        override fun stop() { navigator?.pause() }
+    })
 
     val state: StateFlow<State> = mutableState.asStateFlow()
 
@@ -59,11 +74,16 @@ class TtsVisualSynchronizer(
             mutex.withLock {
                 val existing = navigator
                 if (existing != null) {
-                    existing.play()
+                    if (controller.snapshot.state == com.tl2333.novelvoicereader.narration.NarrationState.PAUSED) {
+                        controller.send(NarrationIntent.Resume)
+                    } else {
+                        controller.accept(NarrationEvent.PlaybackStarted)
+                    }
                     return@withLock
                 }
 
-                mutableState.value = State(preparing = true)
+                controller.send(NarrationIntent.Start(bookId))
+                mutableState.value = State(preparing = true, narration = controller.snapshot)
                 val startLocator = try {
                     visualNavigator.firstVisibleElementLocator()
                 } catch (error: Exception) {
@@ -99,24 +119,32 @@ class TtsVisualSynchronizer(
 
                 navigator = createdNavigator
                 observe(createdNavigator)
-                createdNavigator.play()
+                controller.accept(NarrationEvent.PlaybackStarted)
             }
         }
     }
 
     fun play() {
-        navigator?.play() ?: start()
+        if (navigator == null) start() else {
+            if (controller.snapshot.state == com.tl2333.novelvoicereader.narration.NarrationState.PAUSED) {
+                controller.send(NarrationIntent.Resume)
+            } else {
+                controller.accept(NarrationEvent.PlaybackStarted)
+            }
+        }
     }
 
     fun pause() {
-        navigator?.pause()
+        controller.send(NarrationIntent.Pause)
     }
 
     fun previous() {
+        controller.send(NarrationIntent.Previous)
         navigator?.skipToPreviousUtterance()
     }
 
     fun next() {
+        controller.send(NarrationIntent.Next)
         navigator?.skipToNextUtterance()
     }
 
@@ -139,15 +167,25 @@ class TtsVisualSynchronizer(
                             preparing = false,
                             playing = playback.playWhenReady,
                             error = null,
+                            narration = controller.snapshot,
                         )
                     }
 
-                    TtsNavigator.State.Ended -> stop()
+                    TtsNavigator.State.Ended -> {
+                        controller.accept(NarrationEvent.PlaybackCompleted)
+                        stop()
+                    }
                     is TtsNavigator.State.Failure -> {
+                        if (playbackState.error.message.contains("TTS engine process died", ignoreCase = true)) {
+                            controller.accept(NarrationEvent.TtsProcessDied)
+                        } else {
+                            controller.accept(NarrationEvent.PlaybackFailed(playbackState.error.message))
+                        }
                         mutableState.value = mutableState.value.copy(
                             preparing = false,
                             playing = false,
                             error = playbackState.error.message,
+                            narration = controller.snapshot,
                         )
                     }
 
@@ -212,6 +250,7 @@ class TtsVisualSynchronizer(
         navigator = null
 
         try {
+            controller.send(NarrationIntent.Stop)
             narrationSession.close()
         } finally {
             (visualNavigator as? DecorableNavigator)?.applyDecorations(
