@@ -15,6 +15,7 @@ import com.tl2333.novelvoicereader.reader.PublicationManager
 import com.tl2333.novelvoicereader.reader.ReaderDependencies
 import com.tl2333.novelvoicereader.reader.ReaderNarrationFactory
 import com.tl2333.novelvoicereader.tts.cache.CacheClearResult
+import com.tl2333.novelvoicereader.tts.cache.AudioCacheCapacityPolicy
 import com.tl2333.novelvoicereader.tts.cache.TtsAudioCache
 import com.tl2333.novelvoicereader.ui.diagnostics.DiagnosticsController
 import com.tl2333.novelvoicereader.ui.diagnostics.UnavailableDiagnosticsController
@@ -37,6 +38,7 @@ data class LibraryActionResult(
 data class StorageSnapshot(
     val booksBytes: Long,
     val narrationCacheBytes: Long,
+    val narrationCacheLimitBytes: Long,
     val availableBytes: Long,
 )
 
@@ -145,6 +147,7 @@ class AppContainer(
         StorageSnapshot(
             booksBytes = directorySize(publicationManager.booksDirectory),
             narrationCacheBytes = directorySize(narrationCacheDirectory()),
+            narrationCacheLimitBytes = AudioCacheCapacityPolicy.capacityFor(application.cacheDir.usableSpace),
             availableBytes = application.filesDir.usableSpace,
         )
     }

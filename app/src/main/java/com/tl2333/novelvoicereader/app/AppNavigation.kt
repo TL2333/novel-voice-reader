@@ -284,7 +284,9 @@ fun AppNavigation(container: AppContainer) {
             composable(Routes.STORAGE) {
                 StorageScreen(
                     snapshot = storage,
-                    cacheLimitBytes = preferences.cacheLimitBytes,
+                    cacheLimitBytes = preferences.cacheLimitBytes.takeIf { it > 0L }
+                        ?: storage?.narrationCacheLimitBytes
+                        ?: 0L,
                     busy = storageBusy,
                     onBack = { navController.navigateUp() },
                     onRefresh = {

@@ -37,7 +37,8 @@ data class ReaderTtsPreferences(
     val narrationStyle: NarrationStyle = NarrationStyle.NEUTRAL,
     val automaticStyle: Boolean = true,
     val automaticFollow: Boolean = true,
-    val cacheLimitBytes: Long = 512L * 1024 * 1024,
+    /** Zero selects the free-space-derived cache capacity. Positive values are user caps. */
+    val cacheLimitBytes: Long = 0L,
 )
 
 class ReaderTtsPreferencesStore(
@@ -121,7 +122,7 @@ class ReaderTtsPreferencesStore(
         narrationStyle = values[Keys.style].enumOrDefault(NarrationStyle.NEUTRAL),
         automaticStyle = values[Keys.autoStyle] ?: true,
         automaticFollow = values[Keys.autoFollow] ?: true,
-        cacheLimitBytes = (values[Keys.cacheLimit] ?: 512L * 1024 * 1024).coerceAtLeast(0L),
+        cacheLimitBytes = (values[Keys.cacheLimit] ?: 0L).coerceAtLeast(0L),
     )
 
     private object Keys {

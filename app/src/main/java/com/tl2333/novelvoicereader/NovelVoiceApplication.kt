@@ -8,6 +8,7 @@ import com.tl2333.novelvoicereader.reader.ReadiumTtsNarrationFactory
 import com.tl2333.novelvoicereader.reader.ReaderDependencies
 import com.tl2333.novelvoicereader.reader.ReaderDependenciesOwner
 import com.tl2333.novelvoicereader.tts.diagnostics.KokoroDiagnosticController
+import com.tl2333.novelvoicereader.tts.cache.AudioCacheCapacityPolicy
 import com.tl2333.novelvoicereader.tts.kokoro.KokoroTtsPreferences
 import com.tl2333.novelvoicereader.tts.kokoro.KokoroTtsEngineProvider
 import kotlinx.coroutines.flow.first
@@ -24,7 +25,13 @@ class NovelVoiceApplication : Application(), ReaderDependenciesOwner {
         val preferencesStore = ReaderTtsPreferencesStore(this)
         val kokoroProvider = KokoroTtsEngineProvider(
             context = this,
-            cacheMaxBytes = { preferencesStore.preferences.first().cacheLimitBytes },
+            cacheMaxBytes = {
+                val dynamicLimit = AudioCacheCapacityPolicy.capacityFor(cacheDir.usableSpace)
+                preferencesStore.preferences.first().cacheLimitBytes
+                    .takeIf { it > 0L }
+                    ?.coerceAtMost(dynamicLimit)
+                    ?: dynamicLimit
+            },
         )
         container = AppContainer(
             application = this,
