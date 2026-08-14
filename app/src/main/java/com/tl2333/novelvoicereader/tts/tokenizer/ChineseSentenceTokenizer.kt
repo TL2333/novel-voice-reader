@@ -53,18 +53,44 @@ class ChineseSentenceTokenizer(private val maxCharacters: Int = 120) {
             val hardEnd = cursor + maxCharacters
             var split = -1
             for (candidate in hardEnd downTo cursor + maxCharacters / 2) {
-                if (text[candidate - 1] in SOFT_BREAKS || text[candidate - 1].isWhitespace()) {
+                if (
+                    (text[candidate - 1] in SOFT_BREAKS || text[candidate - 1].isWhitespace()) &&
+                    !isInsideAsciiToken(text, candidate)
+                ) {
                     split = candidate
                     break
                 }
             }
-            if (split < 0) split = hardEnd
+            if (split < 0) {
+                split = (hardEnd downTo cursor + 1)
+                    .firstOrNull { candidate -> !isInsideAsciiToken(text, candidate) }
+                    ?: findAsciiTokenEnd(text, hardEnd, end)
+            }
             addTrimmedRange(text, cursor, split, output)
             cursor = split
         }
         addTrimmedRange(text, cursor, end, output)
         return output
     }
+
+    /** A boundary in an ASCII word/number is unsafe, even when it lands on the hard limit. */
+    private fun isInsideAsciiToken(text: String, boundary: Int): Boolean =
+        boundary > 0 && boundary < text.length &&
+            text[boundary - 1].isAsciiTokenCharacter() && text[boundary].isAsciiTokenCharacter()
+
+    /**
+     * A single token can itself exceed the configured bound. Preserve it rather than corrupting the
+     * word/number; the native-call guard rejects that oversized segment before invoking Kokoro.
+     */
+    private fun findAsciiTokenEnd(text: String, initialBoundary: Int, end: Int): Int {
+        var boundary = initialBoundary
+        while (boundary < end && isInsideAsciiToken(text, boundary)) boundary++
+        return boundary
+    }
+
+    private fun Char.isAsciiTokenCharacter(): Boolean =
+        this in 'a'..'z' || this in 'A'..'Z' || this in '0'..'9' ||
+            this == '_' || this == '\'' || this == '-' || this == '.'
 
     private fun mergeVeryShort(text: String, ranges: MutableList<IntRange>) {
         var index = 0

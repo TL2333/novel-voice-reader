@@ -14,11 +14,13 @@ import com.tl2333.novelvoicereader.tts.cache.TtsCacheKey
 import com.tl2333.novelvoicereader.tts.cache.TtsCacheKeyInput
 import com.tl2333.novelvoicereader.tts.cache.WavInfo
 import com.tl2333.novelvoicereader.tts.cache.WavWriter
+import com.tl2333.novelvoicereader.tts.tokenizer.ChineseSentenceTokenizer
 import com.tl2333.novelvoicereader.tts.tokenizer.ChineseTextNormalizer
 import com.tl2333.novelvoicereader.tts.tokenizer.NarrationStyle
 import com.tl2333.novelvoicereader.tts.tokenizer.NovelStylePlanner
 import java.io.File
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.max
 import kotlinx.coroutines.CompletableDeferred
@@ -42,9 +44,21 @@ enum class KokoroTtsErrorCode {
     MODEL_CORRUPT,
     NATIVE_LIBRARY_MISSING,
     ENGINE_INIT_FAILED,
+    EMPTY_TEXT,
+    EMPTY_GENERATED_AUDIO,
+    TEXT_TOO_LONG,
     SYNTHESIS_FAILED,
     AUDIO_PLAYBACK_FAILED,
     CANCELLED,
+}
+
+enum class KokoroEngineState {
+    INITIALIZING,
+    READY,
+    SYNTHESIZING,
+    STOPPING,
+    RELEASED,
+    FAILED,
 }
 
 data class KokoroTtsError(
@@ -87,9 +101,9 @@ data class KokoroDiagnosticAudio(
 /**
  * sherpa-onnx-backed Readium engine.
  *
- * The single worker owns [offlineTts] and every native inference call. Cancellation is cooperative:
- * sherpa-onnx v1.13.4 stops generation when its callback returns 0. AudioTrack is also owned and
- * released by the worker; calls from stop/pause only change its playback state.
+ * The single worker owns [offlineTts], every native inference call, playback, and release. Native
+ * generation is deliberately callback-free. Cancellation stops playback immediately and marks the
+ * in-flight request so a native result is discarded as soon as the current short sentence returns.
  */
 class KokoroTtsEngine internal constructor(
     private val offlineTts: OfflineTts,
@@ -98,6 +112,7 @@ class KokoroTtsEngine internal constructor(
     val runtimeModel: KokoroRuntimeModel,
     val initializationDurationMillis: Long,
     private val audioCache: TtsAudioCache? = null,
+    private val onReleased: () -> Unit = {},
 ) : TtsEngine<
     KokoroTtsSettings,
     KokoroTtsPreferences,
@@ -116,6 +131,9 @@ class KokoroTtsEngine internal constructor(
 
     private val _settings = MutableStateFlow(settingsResolver.settings(initialPreferences))
     override val settings: StateFlow<KokoroTtsSettings> = _settings.asStateFlow()
+
+    private val _engineState = MutableStateFlow(KokoroEngineState.INITIALIZING)
+    val engineState: StateFlow<KokoroEngineState> = _engineState.asStateFlow()
 
     private val lifecycleLock = Any()
     private val pauseMonitor = java.lang.Object()
@@ -142,6 +160,7 @@ class KokoroTtsEngine internal constructor(
     private var activeWork: Work? = null
 
     init {
+        _engineState.value = KokoroEngineState.READY
         workerScope.launch { consumeWork() }
     }
 
@@ -171,7 +190,7 @@ class KokoroTtsEngine internal constructor(
         }
     }
 
-    /** Pauses AudioTrack and blocks the native generation callback until [resume] or [stop]. */
+    /** Pauses active AudioTrack playback until [resume] or [stop]. */
     fun pause() {
         if (isClosed) return
         synchronized(pauseMonitor) {
@@ -180,7 +199,7 @@ class KokoroTtsEngine internal constructor(
         }
     }
 
-    /** Resumes AudioTrack and lets the blocked generation callback continue. */
+    /** Resumes active AudioTrack playback. */
     fun resume() {
         if (isClosed) return
         synchronized(pauseMonitor) {
@@ -265,6 +284,8 @@ class KokoroTtsEngine internal constructor(
                     continue
                 }
 
+                _engineState.value = KokoroEngineState.SYNTHESIZING
+                var failed = false
                 try {
                     try {
                         when (work) {
@@ -276,6 +297,8 @@ class KokoroTtsEngine internal constructor(
                             throw error
                         }
                         val mapped = mapSynthesisThrowable(error)
+                        failed = true
+                        _engineState.value = KokoroEngineState.FAILED
                         when (work) {
                             is Work.Speak -> {
                                 if (isCurrent(work.epoch) { true }) notifyError(work.requestId, mapped)
@@ -290,6 +313,9 @@ class KokoroTtsEngine internal constructor(
                     synchronized(lifecycleLock) {
                         if (activeWork === work) activeWork = null
                     }
+                    if (!isClosed && !failed && _engineState.value != KokoroEngineState.FAILED) {
+                        _engineState.value = KokoroEngineState.READY
+                    }
                 }
             }
         } finally {
@@ -302,10 +328,11 @@ class KokoroTtsEngine internal constructor(
         if (spokenText.isBlank()) {
             notifyError(
                 work.requestId,
-                KokoroTtsError(KokoroTtsErrorCode.SYNTHESIS_FAILED, "Cannot synthesize an empty utterance."),
+                KokoroTtsError(KokoroTtsErrorCode.EMPTY_TEXT, "Cannot synthesize an empty utterance."),
             )
             return
         }
+        val nativeSegments = splitForNative(spokenText)
 
         val currentSettings = settings.value
         val stylePlan = stylePlan(
@@ -344,7 +371,7 @@ class KokoroTtsEngine internal constructor(
                         cached.samples,
                         cached.sampleRate,
                         work.epoch,
-                        { true },
+                        { !work.cancelled.get() },
                         { runCatching { listener?.onStart(work.requestId) } },
                     )
                 ) {
@@ -358,35 +385,74 @@ class KokoroTtsEngine internal constructor(
             return
         }
 
+        val cacheAccumulator = Pcm16Accumulator()
+        var sampleRate = 0
         var started = false
-        val outcome = synthesize(
-            text = spokenText,
-            parameters = parameters,
-            epoch = work.epoch,
-            collectSamples = audioCache != null,
-            streamPlayback = true,
-            stillWanted = { true },
-            onPlaybackStarted = {
-                if (!started) {
-                    started = true
-                    runCatching { listener?.onStart(work.requestId) }
+        for (segment in nativeSegments) {
+            when (
+                val outcome = synthesize(
+                    text = segment,
+                    parameters = parameters,
+                    epoch = work.epoch,
+                    cancelled = work.cancelled,
+                    stillWanted = { true },
+                )
+            ) {
+                SynthesisOutcome.Cancelled -> {
+                    runCatching { listener?.onInterrupted(work.requestId) }
+                    return
                 }
-            },
-        )
 
-        when (outcome) {
-            is SynthesisOutcome.Success -> {
-                val cacheSamples = outcome.samples
-                if (cacheKey != null && cacheSamples?.isNotEmpty() == true) {
-                    runCatching {
-                        audioCache?.put(cacheKey, cacheSamples, outcome.sampleRate)
+                is SynthesisOutcome.Failure -> {
+                    notifyError(work.requestId, outcome.error)
+                    return
+                }
+
+                is SynthesisOutcome.Success -> {
+                    if (sampleRate == 0) sampleRate = outcome.sampleRate
+                    if (sampleRate != outcome.sampleRate) {
+                        notifyError(
+                            work.requestId,
+                            KokoroTtsError(
+                                KokoroTtsErrorCode.SYNTHESIS_FAILED,
+                                "Kokoro changed sample rate between sentence segments.",
+                            ),
+                        )
+                        return
+                    }
+                    if (cacheKey != null) cacheAccumulator.append(outcome.samples)
+                    when (
+                        val playback = playSamples(
+                            outcome.samples,
+                            outcome.sampleRate,
+                            work.epoch,
+                            { !work.cancelled.get() },
+                            {
+                                if (!started) {
+                                    started = true
+                                    runCatching { listener?.onStart(work.requestId) }
+                                }
+                            },
+                        )
+                    ) {
+                        PlaybackOutcome.Success -> Unit
+                        PlaybackOutcome.Cancelled -> {
+                            runCatching { listener?.onInterrupted(work.requestId) }
+                            return
+                        }
+                        is PlaybackOutcome.Failure -> {
+                            notifyError(work.requestId, playback.error)
+                            return
+                        }
                     }
                 }
-                runCatching { listener?.onDone(work.requestId) }
             }
-            is SynthesisOutcome.Cancelled -> runCatching { listener?.onInterrupted(work.requestId) }
-            is SynthesisOutcome.Failure -> notifyError(work.requestId, outcome.error)
         }
+        if (cacheKey != null) {
+            val samples = cacheAccumulator.toArray()
+            if (samples.isNotEmpty()) runCatching { audioCache?.put(cacheKey, samples, sampleRate) }
+        }
+        runCatching { listener?.onDone(work.requestId) }
     }
 
     private fun processDiagnostic(work: Work.Diagnostic) {
@@ -395,13 +461,15 @@ class KokoroTtsEngine internal constructor(
         val stylePlan = stylePlan(work.text, work.style, work.autoStyle)
         val spokenText = ChineseTextNormalizer.normalize(work.text)
         if (spokenText.isBlank()) {
+            _engineState.value = KokoroEngineState.FAILED
             work.result.completeExceptionally(
                 KokoroTtsOperationException(
-                    KokoroTtsError(KokoroTtsErrorCode.SYNTHESIS_FAILED, "Diagnostic text is empty after normalization."),
+                    KokoroTtsError(KokoroTtsErrorCode.EMPTY_TEXT, "Diagnostic text is empty after normalization."),
                 ),
             )
             return
         }
+        val nativeSegments = splitForNative(spokenText)
         val parameters = SynthesisParameters(
             sid = work.voiceSid,
             speed = work.speed,
@@ -410,62 +478,96 @@ class KokoroTtsEngine internal constructor(
             gain = stylePlan.parameters.gain,
             pauseMultiplier = stylePlan.parameters.pauseMultiplier,
         )
-        when (
-            val outcome = synthesize(
-                text = spokenText,
-                parameters = parameters,
-                epoch = work.epoch,
-                collectSamples = true,
-                streamPlayback = false,
-                stillWanted = { work.result.isActive },
-                onPlaybackStarted = {},
-            )
-        ) {
-            is SynthesisOutcome.Cancelled -> work.result.completeExceptionally(
-                KokoroTtsOperationException(KokoroTtsError.cancelled()),
-            )
-
-            is SynthesisOutcome.Failure -> work.result.completeExceptionally(
-                KokoroTtsOperationException(outcome.error),
-            )
-
-            is SynthesisOutcome.Success -> {
-                try {
-                    if (!isCurrent(work.epoch) { work.result.isActive }) {
-                        throw KokoroTtsOperationException(KokoroTtsError.cancelled())
-                    }
-                    val samples = requireNotNull(outcome.samples)
-                    val wav = WavWriter.writeMonoPcm16(work.destination, samples, outcome.sampleRate)
-                    if (work.playAfterSynthesis) {
-                        when (val playback = playSamples(samples, outcome.sampleRate, work.epoch, { work.result.isActive }, {})) {
-                            is PlaybackOutcome.Cancelled -> throw KokoroTtsOperationException(KokoroTtsError.cancelled())
-                            is PlaybackOutcome.Failure -> throw KokoroTtsOperationException(playback.error)
-                            PlaybackOutcome.Success -> Unit
-                        }
-                    }
-                    work.result.complete(
-                        KokoroDiagnosticAudio(
-                            wav = wav,
-                            synthesisDurationMillis = outcome.synthesisDurationMillis,
-                            voiceSid = work.voiceSid,
-                            speed = work.speed,
-                            style = stylePlan.style,
-                        ),
-                    )
-                } catch (error: KokoroTtsOperationException) {
-                    work.result.completeExceptionally(error)
-                } catch (error: Throwable) {
-                    work.result.completeExceptionally(
-                        KokoroTtsOperationException(
-                            KokoroTtsError.fromThrowable(
-                                KokoroTtsErrorCode.SYNTHESIS_FAILED,
-                                "Unable to save the diagnostic WAV.",
-                                error,
+        val accumulator = Pcm16Accumulator()
+        var sampleRate = 0
+        var synthesisDurationMillis = 0L
+        for (segment in nativeSegments) {
+            when (
+                val outcome = synthesize(
+                    text = segment,
+                    parameters = parameters,
+                    epoch = work.epoch,
+                    cancelled = work.cancelled,
+                    stillWanted = { work.result.isActive },
+                )
+            ) {
+                SynthesisOutcome.Cancelled -> {
+                    work.result.completeExceptionally(KokoroTtsOperationException(KokoroTtsError.cancelled()))
+                    return
+                }
+                is SynthesisOutcome.Failure -> {
+                    _engineState.value = KokoroEngineState.FAILED
+                    work.result.completeExceptionally(KokoroTtsOperationException(outcome.error))
+                    return
+                }
+                is SynthesisOutcome.Success -> {
+                    if (sampleRate == 0) sampleRate = outcome.sampleRate
+                    if (sampleRate != outcome.sampleRate) {
+                        _engineState.value = KokoroEngineState.FAILED
+                        work.result.completeExceptionally(
+                            KokoroTtsOperationException(
+                                KokoroTtsError(
+                                    KokoroTtsErrorCode.SYNTHESIS_FAILED,
+                                    "Kokoro changed sample rate between diagnostic sentence segments.",
+                                ),
                             ),
-                        ),
-                    )
+                        )
+                        return
+                    }
+                    accumulator.append(outcome.samples)
+                    synthesisDurationMillis += outcome.synthesisDurationMillis
                 }
             }
+        }
+        try {
+            if (!isCurrent(work.epoch) { work.result.isActive && !work.cancelled.get() }) {
+                throw KokoroTtsOperationException(KokoroTtsError.cancelled())
+            }
+            val samples = accumulator.toArray()
+            if (samples.isEmpty() || sampleRate <= 0) {
+                throw KokoroTtsOperationException(emptyGeneratedAudioError())
+            }
+            val wav = WavWriter.writeMonoPcm16(work.destination, samples, sampleRate)
+            if (work.playAfterSynthesis) {
+                when (
+                    val playback = playSamples(
+                        samples,
+                        sampleRate,
+                        work.epoch,
+                        { work.result.isActive && !work.cancelled.get() },
+                        {},
+                    )
+                ) {
+                    PlaybackOutcome.Cancelled -> throw KokoroTtsOperationException(KokoroTtsError.cancelled())
+                    is PlaybackOutcome.Failure -> throw KokoroTtsOperationException(playback.error)
+                    PlaybackOutcome.Success -> Unit
+                }
+            }
+            work.result.complete(
+                KokoroDiagnosticAudio(
+                    wav = wav,
+                    synthesisDurationMillis = synthesisDurationMillis,
+                    voiceSid = work.voiceSid,
+                    speed = work.speed,
+                    style = stylePlan.style,
+                ),
+            )
+        } catch (error: KokoroTtsOperationException) {
+            if (error.error.code != KokoroTtsErrorCode.CANCELLED) {
+                _engineState.value = KokoroEngineState.FAILED
+            }
+            work.result.completeExceptionally(error)
+        } catch (error: Throwable) {
+            _engineState.value = KokoroEngineState.FAILED
+            work.result.completeExceptionally(
+                KokoroTtsOperationException(
+                    KokoroTtsError.fromThrowable(
+                        KokoroTtsErrorCode.SYNTHESIS_FAILED,
+                        "Unable to save the diagnostic WAV.",
+                        error,
+                    ),
+                ),
+            )
         }
     }
 
@@ -473,165 +575,67 @@ class KokoroTtsEngine internal constructor(
         text: String,
         parameters: SynthesisParameters,
         epoch: Long,
-        collectSamples: Boolean,
-        streamPlayback: Boolean,
+        cancelled: AtomicBoolean,
         stillWanted: () -> Boolean,
-        onPlaybackStarted: () -> Unit,
     ): SynthesisOutcome {
-        if (!isCurrent(epoch, stillWanted)) return SynthesisOutcome.Cancelled
-
-        val sampleRate = try {
-            offlineTts.sampleRate().also {
-                if (it <= 0) error("sherpa-onnx returned an invalid sample rate: $it")
-            }
-        } catch (error: Throwable) {
-            return SynthesisOutcome.Failure(mapSynthesisThrowable(error))
+        if (!isCurrent(epoch) { !cancelled.get() && stillWanted() }) return SynthesisOutcome.Cancelled
+        if (text.isBlank()) {
+            return SynthesisOutcome.Failure(
+                KokoroTtsError(KokoroTtsErrorCode.EMPTY_TEXT, "Cannot send empty text to Kokoro."),
+            )
+        }
+        require(text.isNotBlank())
+        if (text.length > MAX_NATIVE_CHARACTERS) {
+            return SynthesisOutcome.Failure(
+                KokoroTtsError(
+                    KokoroTtsErrorCode.TEXT_TOO_LONG,
+                    "Kokoro sentence exceeds the $MAX_NATIVE_CHARACTERS character native limit.",
+                ),
+            )
         }
 
-        val accumulator = if (collectSamples) Pcm16Accumulator() else null
-        var track: AudioTrack? = null
-        var callbackError: KokoroTtsError? = null
-        var receivedSamples = false
-        var playbackStarted = false
-        var writtenFrames = 0L
-        var generatedSamples: FloatArray? = null
-        var generatedSampleRate = sampleRate
-
         val startedAt = System.nanoTime()
-        try {
-            val generated = offlineTts.generateWithConfigAndCallback(
-                text,
-                GenerationConfig(
+        val generated = try {
+            offlineTts.generateWithConfig(
+                text = text,
+                config = GenerationConfig(
                     silenceScale = (DEFAULT_SILENCE_SCALE * parameters.pauseMultiplier).coerceAtLeast(0f),
                     speed = (parameters.speed.toFloat() * parameters.styleSpeed).coerceAtLeast(0.05f),
                     sid = parameters.sid,
                 ),
-            ) { chunk ->
-                if (!awaitResume(epoch, stillWanted)) return@generateWithConfigAndCallback 0
-                if (chunk.isEmpty()) return@generateWithConfigAndCallback 1
-
-                receivedSamples = true
-                val pcm = WavWriter.floatToPcm16(chunk, parameters.gain)
-                accumulator?.append(pcm)
-                if (streamPlayback) {
-                    if (track == null) {
-                        track = try {
-                            createAudioTrack(sampleRate)
-                        } catch (error: Throwable) {
-                            callbackError = KokoroTtsError.fromThrowable(
-                                KokoroTtsErrorCode.AUDIO_PLAYBACK_FAILED,
-                                "Unable to initialize AudioTrack for Kokoro speech.",
-                                error,
-                            )
-                            return@generateWithConfigAndCallback 0
-                        }
-                    }
-                    if (!playbackStarted) {
-                        playbackStarted = true
-                        onPlaybackStarted()
-                    }
-                    when (val playback = writeSamples(requireNotNull(track), pcm, epoch, stillWanted)) {
-                        PlaybackOutcome.Success -> writtenFrames += pcm.size.toLong()
-                        PlaybackOutcome.Cancelled -> return@generateWithConfigAndCallback 0
-                        is PlaybackOutcome.Failure -> {
-                            callbackError = playback.error
-                            return@generateWithConfigAndCallback 0
-                        }
-                    }
-                }
-                1
-            }
-            generatedSamples = generated.samples
-            if (generated.sampleRate > 0) generatedSampleRate = generated.sampleRate
+            )
         } catch (error: Throwable) {
-            releaseTrack(track)
-            return if (!isCurrent(epoch, stillWanted)) {
+            return if (!isCurrent(epoch) { !cancelled.get() && stillWanted() }) {
                 SynthesisOutcome.Cancelled
             } else {
                 SynthesisOutcome.Failure(mapSynthesisThrowable(error))
             }
         }
         val synthesisDurationMillis = nanosToMillis(System.nanoTime() - startedAt)
-
-        callbackError?.let {
-            releaseTrack(track)
-            return SynthesisOutcome.Failure(it)
-        }
-        if (!isCurrent(epoch, stillWanted)) {
-            releaseTrack(track)
+        if (!isCurrent(epoch) { !cancelled.get() && stillWanted() }) {
             return SynthesisOutcome.Cancelled
         }
-
-        if (!receivedSamples && generatedSamples?.isNotEmpty() == true) {
-            val pcm = WavWriter.floatToPcm16(requireNotNull(generatedSamples), parameters.gain)
-            accumulator?.append(pcm)
-            if (streamPlayback) {
-                val fallbackTrack = try {
-                    createAudioTrack(generatedSampleRate)
-                } catch (error: Throwable) {
-                    return SynthesisOutcome.Failure(
-                        KokoroTtsError.fromThrowable(
-                            KokoroTtsErrorCode.AUDIO_PLAYBACK_FAILED,
-                            "Unable to initialize AudioTrack for Kokoro speech.",
-                            error,
-                        ),
-                    )
-                }
-                track = fallbackTrack
-                playbackStarted = true
-                onPlaybackStarted()
-                when (val playback = writeSamples(fallbackTrack, pcm, epoch, stillWanted)) {
-                    PlaybackOutcome.Success -> writtenFrames += pcm.size.toLong()
-                    PlaybackOutcome.Cancelled -> {
-                        releaseTrack(fallbackTrack)
-                        return SynthesisOutcome.Cancelled
-                    }
-                    is PlaybackOutcome.Failure -> {
-                        releaseTrack(fallbackTrack)
-                        return SynthesisOutcome.Failure(playback.error)
-                    }
-                }
-                receivedSamples = true
-            }
+        if (generated.samples.isEmpty() || generated.sampleRate <= 0) {
+            return SynthesisOutcome.Failure(emptyGeneratedAudioError())
         }
-
-        if (!receivedSamples) {
-            releaseTrack(track)
-            return SynthesisOutcome.Failure(
-                KokoroTtsError(
-                    KokoroTtsErrorCode.SYNTHESIS_FAILED,
-                    "sherpa-onnx completed without producing audio samples.",
-                ),
-            )
-        }
-
-        if (streamPlayback) {
-            when (
-                val playback = finishPlayback(
-                    requireNotNull(track),
-                    expectedFrames = writtenFrames,
-                    epoch = epoch,
-                    stillWanted = stillWanted,
-                )
-            ) {
-                PlaybackOutcome.Success -> Unit
-                PlaybackOutcome.Cancelled -> return SynthesisOutcome.Cancelled
-                is PlaybackOutcome.Failure -> return SynthesisOutcome.Failure(playback.error)
-            }
-        }
-
-        val samples = accumulator?.toArray()
-        if (collectSamples && samples?.isNotEmpty() != true) {
-            return SynthesisOutcome.Failure(
-                KokoroTtsError(KokoroTtsErrorCode.SYNTHESIS_FAILED, "Kokoro produced no PCM samples."),
-            )
-        }
+        val samples = WavWriter.floatToPcm16(generated.samples, parameters.gain)
+        if (samples.isEmpty()) return SynthesisOutcome.Failure(emptyGeneratedAudioError())
         return SynthesisOutcome.Success(
             samples = samples,
-            sampleRate = generatedSampleRate,
+            sampleRate = generated.sampleRate,
             synthesisDurationMillis = synthesisDurationMillis,
         )
     }
+
+    private fun splitForNative(text: String): List<String> =
+        ChineseSentenceTokenizer(maxCharacters = MAX_NATIVE_CHARACTERS)
+            .tokenize(text)
+            .map { it.text }
+
+    private fun emptyGeneratedAudioError() = KokoroTtsError(
+        KokoroTtsErrorCode.EMPTY_GENERATED_AUDIO,
+        "sherpa-onnx completed without valid audio samples.",
+    )
 
     private fun playSamples(
         samples: ShortArray,
@@ -812,11 +816,18 @@ class KokoroTtsEngine internal constructor(
 
     private fun cancelCurrentAndFlushQueue(markClosed: Boolean) {
         val flushed = mutableListOf<Work>()
+        var hadActiveWork = false
         synchronized(lifecycleLock) {
             if (isClosed && !markClosed) return
+            _engineState.value = KokoroEngineState.STOPPING
             cancellationEpoch.incrementAndGet()
+            activeWork?.let { active ->
+                hadActiveWork = true
+                active.cancelled.set(true)
+            }
             while (true) {
                 val work = workQueue.tryReceive().getOrNull() ?: break
+                work.cancelled.set(true)
                 flushed += work
             }
         }
@@ -829,6 +840,9 @@ class KokoroTtsEngine internal constructor(
             pauseMonitor.notifyAll()
         }
         flushed.forEach(::flush)
+        if (!markClosed && !hadActiveWork) {
+            _engineState.value = KokoroEngineState.READY
+        }
     }
 
     private fun flush(work: Work) {
@@ -851,11 +865,19 @@ class KokoroTtsEngine internal constructor(
 
     private fun releaseOwnedResources() {
         releaseTrack(activeAudioTrack)
-        runCatching { offlineTts.release() }
-        executor.shutdown()
+        try {
+            runCatching { offlineTts.release() }
+        } finally {
+            _engineState.value = KokoroEngineState.RELEASED
+            runCatching(onReleased)
+            executor.shutdown()
+        }
     }
 
     private fun notifyError(requestId: TtsEngine.RequestId, error: KokoroTtsError) {
+        if (error.code != KokoroTtsErrorCode.CANCELLED) {
+            _engineState.value = KokoroEngineState.FAILED
+        }
         runCatching { listener?.onError(requestId, error) }
     }
 
@@ -887,12 +909,14 @@ class KokoroTtsEngine internal constructor(
 
     private sealed interface Work {
         val epoch: Long
+        val cancelled: AtomicBoolean
 
         data class Speak(
             val requestId: TtsEngine.RequestId,
             val text: String,
             val language: Language?,
             override val epoch: Long,
+            override val cancelled: AtomicBoolean = AtomicBoolean(false),
         ) : Work
 
         data class Diagnostic(
@@ -905,6 +929,7 @@ class KokoroTtsEngine internal constructor(
             val playAfterSynthesis: Boolean,
             override val epoch: Long,
             val result: CompletableDeferred<KokoroDiagnosticAudio>,
+            override val cancelled: AtomicBoolean = AtomicBoolean(false),
         ) : Work
     }
 
@@ -919,7 +944,7 @@ class KokoroTtsEngine internal constructor(
 
     private sealed interface SynthesisOutcome {
         data class Success(
-            val samples: ShortArray?,
+            val samples: ShortArray,
             val sampleRate: Int,
             val synthesisDurationMillis: Long,
         ) : SynthesisOutcome
@@ -957,6 +982,7 @@ class KokoroTtsEngine internal constructor(
 
     companion object {
         private const val DEFAULT_SILENCE_SCALE = 0.2f
+        private const val MAX_NATIVE_CHARACTERS = 120
         private const val PLAYBACK_POLL_MILLIS = 10L
         private const val PLAYBACK_STALL_NANOS = 5_000_000_000L
         private const val TOKENIZER_VERSION = "chinese-sentence-v1"

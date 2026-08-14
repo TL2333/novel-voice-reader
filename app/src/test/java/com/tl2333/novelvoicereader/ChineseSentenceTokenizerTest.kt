@@ -30,4 +30,29 @@ class ChineseSentenceTokenizerTest {
         assertThat(bounded.size).isGreaterThan(1)
         assertThat(bounded.all { it.text.length <= 20 }).isTrue()
     }
+
+    @Test
+    fun doesNotSplitEnglishWordsOrNumbersAtHardBoundary() {
+        val source = "1234567890 abcdefghijklmnop 9876543210"
+
+        val segments = ChineseSentenceTokenizer(maxCharacters = 20).tokenize(source)
+
+        assertThat(segments.map { it.text }).containsExactly(
+            "1234567890",
+            "abcdefghijklmnop",
+            "9876543210",
+        ).inOrder()
+        assertThat(segments.all { it.text.length <= 20 }).isTrue()
+    }
+
+    @Test
+    fun preservesOneOversizedAsciiTokenForNativeGuardToReject() {
+        val oversizedToken = "A".repeat(25)
+        val source = "prefix $oversizedToken suffix"
+
+        val segments = ChineseSentenceTokenizer(maxCharacters = 20).tokenize(source)
+
+        assertThat(segments.map { it.text }).contains(oversizedToken)
+        assertThat(segments.none { it.text != oversizedToken && it.text in oversizedToken }).isTrue()
+    }
 }

@@ -9,9 +9,11 @@ import androidx.media3.common.PlaybackParameters
 import com.k2fsa.sherpa.onnx.OfflineTts
 import com.tl2333.novelvoicereader.tts.cache.TtsAudioCache
 import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
 import org.readium.navigator.media.tts.TtsEngineProvider
 import org.readium.r2.shared.publication.Metadata
 import org.readium.r2.shared.publication.Publication
@@ -30,6 +32,7 @@ class KokoroTtsEngineProvider(
             ?: "unidentified-publication"
     },
     private val fixedBookId: String? = null,
+    private val nativeSessionMutex: Mutex = Mutex(),
 ) : TtsEngineProvider<
     KokoroTtsSettings,
     KokoroTtsPreferences,
@@ -54,6 +57,7 @@ class KokoroTtsEngineProvider(
             cacheMaxBytes = cacheMaxBytes,
             bookIdResolver = bookIdResolver,
             fixedBookId = bookId,
+            nativeSessionMutex = nativeSessionMutex,
         )
     }
 
@@ -84,7 +88,10 @@ class KokoroTtsEngineProvider(
     ): Try<KokoroTtsEngine, Error> = withContext(Dispatchers.IO) {
         val startedAt = SystemClock.elapsedRealtimeNanos()
         var offlineTts: OfflineTts? = null
+        val nativeLeaseHeld = AtomicBoolean(false)
         try {
+            nativeSessionMutex.lock()
+            nativeLeaseHeld.set(true)
             val runtimeModel = modelLocator.prepareRuntimeData()
             val config = KokoroConfigFactory.create(runtimeModel.espeakDataDirectory)
             val createdTts = OfflineTts(applicationContext.assets, config)
@@ -107,13 +114,20 @@ class KokoroTtsEngineProvider(
                         SystemClock.elapsedRealtimeNanos() - startedAt,
                     ),
                     audioCache = audioCache,
+                    onReleased = {
+                        if (nativeLeaseHeld.compareAndSet(true, false)) {
+                            nativeSessionMutex.unlock()
+                        }
+                    },
                 ),
             )
         } catch (error: CancellationException) {
             runCatching { offlineTts?.release() }
+            if (nativeLeaseHeld.compareAndSet(true, false)) nativeSessionMutex.unlock()
             throw error
         } catch (error: Throwable) {
             runCatching { offlineTts?.release() }
+            if (nativeLeaseHeld.compareAndSet(true, false)) nativeSessionMutex.unlock()
             Try.failure(mapInitializationError(error))
         }
     }
