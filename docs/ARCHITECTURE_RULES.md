@@ -1,0 +1,22 @@
+# Architecture Rules
+
+- RULE-001: UI must not call sherpa-onnx directly.
+- RULE-002: Only the TTS service layer may import `com.k2fsa.sherpa.onnx.*`.
+- RULE-003: Formal narration has exactly one Media3 player.
+- RULE-004: User playback speed is modified only through Media3.
+- RULE-005: `playbackSpeed` must not directly modify Kokoro synthesis speed.
+- RULE-006: `playbackSpeed` must not enter the TTS audio cache key.
+- RULE-007: At most one Kokoro generate task executes at once.
+- RULE-008: Native Kokoro/sherpa runs in the separate `:tts` process.
+- RULE-009: Reader UI, Room, Readium, and the main player do not run in `:tts`.
+- RULE-010: Every document format becomes `CanonicalDocument` before narration.
+- RULE-011: `NarrationController` does not depend on EPUB, PDF, DOCX, TXT, or HTML parsers.
+- RULE-012: All formats share `SpeechSegment`, `PrefetchPlanner`, `AudioCache`, and Media3.
+- RULE-013: Web network requests exist only under `content/web`.
+- RULE-014: TTS, playback, database, and reader packages do not initiate networking.
+- RULE-015: URL content becomes `WebSnapshot` before narration.
+- RULE-016: Third-party APIs require inspection of the locked source, JAR/AAR, or official example.
+- RULE-017: Method names and signatures must not be invented.
+- RULE-018: Compilation failures must not be hidden by mocks, empty implementations, TODOs, or deleting core behavior.
+- RULE-019: PDF display and PDF text narration are decoupled.
+- RULE-020: DOCX and legacy DOC are different formats and importers.
