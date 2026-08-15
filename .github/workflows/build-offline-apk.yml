@@ -1,0 +1,62 @@
+name: Build offline arm64 APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - codex/build-deliverable-apk
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    # Official source clones, a 147 MB model download, full hashing, lint and APK packaging can
+    # legitimately exceed the default window on a cold Windows runner.
+    timeout-minutes: 180
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install SDK 36
+        shell: pwsh
+        run: |
+          & sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'platform-tools'
+          if ($LASTEXITCODE -ne 0) { throw "sdkmanager failed with exit code $LASTEXITCODE" }
+
+      - name: Build and verify deliverable
+        shell: powershell
+        run: |
+          & powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-deliverable.ps1
+          if ($LASTEXITCODE -ne 0) { throw "build-deliverable.ps1 failed with exit code $LASTEXITCODE" }
+
+      - name: Upload verified APK and reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: NovelVoiceReader-arm64-debug
+          path: |
+            dist/NovelVoiceReader-arm64-debug.apk
+            dist/SHA256SUMS.txt
+            dist/BUILD_REPORT.md
+            dist/INSTALL_GUIDE.md
+            dist/MANUAL_TEST_CHECKLIST.md
+            dist/DEPENDENCY_LOCK_REPORT.md
+            dist/APK_CONTENTS_REPORT.txt
+          if-no-files-found: error
+          retention-days: 14

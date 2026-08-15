@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <exclude domain="file" path="books/" />
+    <exclude domain="file" path="audio/" />
+    <exclude domain="database" path="novel_voice.db" />
+</full-backup-content>

@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "modelId": "kokoro-int8-multi-lang-v1_1",
+  "modelVersion": "Kokoro-82M-v1.1-zh INT8",
+  "huggingFaceRepository": "csukuangfj/kokoro-int8-multi-lang-v1_1",
+  "huggingFaceCommit": "155831f1b4ba23b1f5c058be6a61df90cefb2a37",
+  "sourceUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-int8-multi-lang-v1_1.tar.bz2",
+  "archiveSizeBytes": 147031220,
+  "archiveSha256": "a1e94694776049035c4f2c6529f003aaece993c76aae9a78995831c3c4dcafc6",
+  "archiveChecksumSource": "GitHub Releases API asset.digest",
+  "payloadFileCount": 377,
+  "payloadSizeBytes": 215321602,
+  "requiredFiles": {
+    "model.int8.onnx": {
+      "sizeBytes": 114299010,
+      "sha256": "bda15858163726a492d02a9a727bc263551b86ac77f90812c4b30ff41d380e26"
+    },
+    "voices.bin": {
+      "sizeBytes": 53790720,
+      "sha256": "e64a5a581d8c2a350d848f51c3121657cd83aa07ed6109172177345874a7244c"
+    },
+    "lexicon-zh.txt": {
+      "sizeBytes": 2119465,
+      "sha256": "11111d8cd695fba2ace1367a1d0a708b586e6ef5c1f9be91da5d7eef129b651c"
+    }
+  },
+  "requiredPaths": [
+    "model.int8.onnx",
+    "voices.bin",
+    "tokens.txt",
+    "lexicon-zh.txt",
+    "lexicon-us-en.txt",
+    "lexicon-gb-en.txt",
+    "phone-zh.fst",
+    "date-zh.fst",
+    "number-zh.fst",
+    "dict",
+    "espeak-ng-data",
+    "LICENSE",
+    "README.md"
+  ],
+  "assetDirectory": "kokoro"
+}

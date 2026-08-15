@@ -1,0 +1,15 @@
+{"category":"narration","text":"夜色沿着河面缓缓落下，远处的灯光一盏接一盏亮起。"}
+{"category":"dialogue","text":"“你真的决定了吗？”她问。"}
+{"category":"continuous_dialogue","text":"“走吧。”“现在？”“就是现在。”"}
+{"category":"short","text":"雨停了。"}
+{"category":"long","text":"清晨的列车穿过连绵的丘陵，窗外的村庄、河流和刚刚醒来的田野依次向后退去，而车厢里的人们仍沉浸在各自安静又漫长的梦境中。"}
+{"category":"numbers","text":"房间号是 1208，序列号是 A-2048。"}
+{"category":"date_time","text":"会议安排在 2026 年 8 月 14 日 09:30。"}
+{"category":"money_percent","text":"总价为 1,299.50 元，折扣是 12.5%。"}
+{"category":"english","text":"The offline reader keeps narration data on this device."}
+{"category":"mixed","text":"Novel Voice Reader 支持 Media3 playback 与离线 Kokoro TTS。"}
+{"category":"question","text":"为什么缓冲区必须按 wall time 计算？"}
+{"category":"exclamation","text":"前方危险，立刻停下！"}
+{"category":"ellipsis_dash","text":"他停顿了很久……然后说——我们继续。"}
+{"category":"heading","text":"第十二章 风暴之前"}
+{"category":"extreme","text":"这是一个用于验证硬分段边界的极长段落。它连续包含许多句子，并且故意超过普通目标长度，以确保分段器能够优先选择语义边界、避免拆开数字 2026-08-14、时间 09:30、网址 https://example.com/path 和英文 token，同时仍然把输出限制在可安全合成的范围内。这不是任何用户文档，只是仓库自带的合成测试材料。为了继续增加长度，这里再加入若干完整句子。缓冲规划不应改变原始文本顺序。播放倍速只由 Media3 负责。缓存键不得包含用户播放倍速。最后一句用于确认极长输入依然可以稳定结束。"}

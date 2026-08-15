@@ -1,0 +1,2 @@
+dd07cbb86eae567c78b92ebd869cae5f7828143f68c5b918c6591143d32827d2  NovelVoiceReader-arm64-debug-narration-v2.apk
+9b74ffd7dee8d0cefb35ae495c635f7aff92b907b43f0a8201b7b29927472c68  NovelVoiceReader-arm64-debug-import-language-v3.apk
