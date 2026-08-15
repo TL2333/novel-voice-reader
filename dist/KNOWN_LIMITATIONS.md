@@ -1,6 +1,8 @@
 # Known Limitations
 
 - The requested Xiaomi device was disconnected. No installation, audible speech, RTF, RAM, thermal, speed-switching, Web network, OCR, or 30-minute stability result is claimed.
+- Android VIEW/SEND and WeChat share routing are covered by pure routing/import tests, but the real provider grant/URI behavior remains `DEVICE_RUNTIME_PENDING` because no device is connected.
+- The packaged Kokoro v1.1-zh model has verified Chinese and English lexicons/voices but no verified Japanese voice path. Japanese segments fail explicitly through the pluggable `JapaneseTtsBackend` boundary instead of being mispronounced as Chinese.
 - Legacy binary `.doc` is detected but not parsed. The app gives explicit DOCX conversion guidance because no locked, verified Android-safe parser was selected.
 - EPUB preserves the proven Readium reader and narration bridge. It uses the shared controller/speed boundary and isolated TTS backend, but it does not yet use the canonical disk-chunk playback queue.
 - TXT/DOCX/PDF/Web canonical playback uses one activity-owned ExoPlayer. It is not yet routed through the existing `MediaSessionService`, so background and lock-screen playback for these formats remains pending.

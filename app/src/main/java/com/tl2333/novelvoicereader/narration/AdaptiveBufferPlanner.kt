@@ -69,9 +69,9 @@ object AdaptiveBufferPlanner {
             loadFactor = loadFactor,
             watermarks = watermarks,
             warmStartWallMs = when {
-                playbackSpeed <= 1.25f -> 15_000
-                playbackSpeed == 1.5f -> 25_000
-                else -> 45_000
+                playbackSpeed <= 1.25f -> 5_000
+                playbackSpeed <= 1.5f -> 6_500
+                else -> 8_000
             },
             targetMediaMs = (watermarks.targetWallMs * playbackSpeed).toLong(),
             highMediaMs = (watermarks.highWallMs * playbackSpeed).toLong(),

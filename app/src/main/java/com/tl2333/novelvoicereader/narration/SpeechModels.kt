@@ -11,6 +11,7 @@ data class SpeechSegment(
     val text: String,
     val anchor: DocumentLocation,
     val plannedPauseMs: Long,
+    val language: SpeechLanguage = SpeechLanguage.ZH,
 ) {
     init {
         require(id.isNotBlank() && documentId.isNotBlank() && sectionId.isNotBlank() && blockId.isNotBlank())

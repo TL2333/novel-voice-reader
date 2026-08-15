@@ -1,6 +1,6 @@
 # Installation Guide
 
-1. Copy NovelVoiceReader-arm64-debug.apk to the phone's **Download** folder using USB/MTP.
+1. Copy `NovelVoiceReader-arm64-debug-import-language-v3.apk` to the phone's **Download** folder using USB/MTP.
 2. Open the APK in the phone's file manager.
 3. Allow that file manager to **Install unknown apps** when Android asks.
 4. Install the APK.
@@ -12,4 +12,4 @@
 10. Open chapter 1 and start narration.
 11. Use **导入 EPUB** to select your own unprotected .epub through Android's document picker.
 
-The APK is debug-signed. It is offline-only and declares no Internet or network-state permission.
+The APK is debug-signed. TTS and imported-library playback are offline; `INTERNET` is used only for an explicit URL import. No broad storage or network-state permission is declared.

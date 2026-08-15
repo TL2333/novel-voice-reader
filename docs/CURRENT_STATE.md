@@ -1,4 +1,8 @@
-# Current State Before Narration V2
+# Current State
+
+Update: 2026-08-15. Narration V2 is now extended with content-first local detection, Android VIEW/SEND import, per-segment ZH/EN/JA routing, a verified Japanese-unsupported backend boundary, 5–8-second first-play policy, RTF-driven native threads/chunks/queue depth, language-complete cache keys, and stale-epoch rejection. The current validation is 77 JVM tests, Lint with 0 errors, and a successful debug APK build. No ADB device is connected, so runtime measurements remain pending. See `dist/IMPORT_LANGUAGE_RUNTIME_REPORT.md`.
+
+## Narration V2 audit baseline
 
 Audit date: 2026-08-14. The local working tree, not GitHub `main`, is the source of truth.
 

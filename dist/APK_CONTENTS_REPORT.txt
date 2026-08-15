@@ -1,7 +1,7 @@
 APK static verification: PASS
-Path: C:\code\novel-voice-reader\app\build\outputs\apk\debug\app-debug.apk
-Size: 263563538
-SHA256: dd07cbb86eae567c78b92ebd869cae5f7828143f68c5b918c6591143d32827d2
+Path: C:\code\novel-voice-reader\dist\NovelVoiceReader-arm64-debug-import-language-v3.apk
+Size: 263687255
+SHA256: 9b74ffd7dee8d0cefb35ae495c635f7aff92b907b43f0a8201b7b29927472c68
 Metadata: {'package': 'com.tl2333.novelvoicereader', 'version_code': '1', 'version_name': '0.1.0', 'min_sdk': '26', 'target_sdk': '36'}
 Native ABIs: ['arm64-v8a']
 Required native libraries: ['lib/arm64-v8a/libonnxruntime.so', 'lib/arm64-v8a/libsherpa-onnx-c-api.so', 'lib/arm64-v8a/libsherpa-onnx-cxx-api.so', 'lib/arm64-v8a/libsherpa-onnx-jni.so']
@@ -21,10 +21,7 @@ zipalign: verified
 Uncompressed-size Compressed-size CRC32 Entry
           56           52 56aeffda META-INF/com/android/build/gradle/app-metadata.properties
     42029580     10706783 5badcd8b classes.dex
-       26220        12439 8579affb classes10.dex
        46884        20204 3be1b0f2 classes11.dex
-      162860        68736 ee4db3ce classes13.dex
-      285896       119256 0603a57f classes14.dex
         1320          782 c077faa7 classes15.dex
        64592        28659 7ecca357 classes16.dex
     16252268      6444321 c0c2eeb4 classes17.dex
@@ -33,10 +30,8 @@ Uncompressed-size Compressed-size CRC32 Entry
       290860        81863 74134979 classes2.dex
      4098804      1642264 3557f88e classes20.dex
        25896        12797 5de92aed classes3.dex
-       70064        33039 32637856 classes4.dex
        38068        17435 47a58928 classes5.dex
       184564        70974 89229e55 classes6.dex
-      366604       142847 18698f17 classes7.dex
        63980        27397 55b759be classes9.dex
        10096        10096 9734baa0 lib/arm64-v8a/libandroidx.graphics.path.so
        10360        10360 d7b2b35c lib/arm64-v8a/libdatastore_shared_counter.so
@@ -484,7 +479,6 @@ Uncompressed-size Compressed-size CRC32 Entry
       125783        40072 ad736818 assets/readium/scripts/readium-fixed.js
       126068        40213 430bd409 assets/readium/scripts/readium-reflowable.js
         4025         3496 d7633fa9 assets/testbooks/storyvoice-test.epub
-       12124         2954 bb5ccfc2 AndroidManifest.xml
          364          218 7615c3c4 res/anim-v21/fragment_fast_out_extra_slow_in.xml
          388          216 6270df64 res/anim/abc_fade_in.xml
          388          218 748bb31c res/anim/abc_fade_out.xml
@@ -1120,5 +1114,11 @@ Uncompressed-size Compressed-size CRC32 Entry
           70           48 dee807fe transport-runtime.properties
           64           42 af3e0115 vision-common.properties
           72           47 7413473b vision-interfaces.properties
-      211772        92824 caf90d2a classes12.dex
-      476668       182615 cf31b693 classes8.dex
+       27304        12916 4788b124 classes10.dex
+      162784        68717 45162e87 classes13.dex
+       69024        32482 bcdfb106 classes4.dex
+      371108       144620 cbbe4479 classes7.dex
+      476816       182690 fd245100 classes8.dex
+      272468       118861 51d909ab classes12.dex
+      295964       123599 c60de252 classes14.dex
+       14528         3373 28525971 AndroidManifest.xml

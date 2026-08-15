@@ -1,5 +1,7 @@
 package com.tl2333.novelvoicereader.tts.kokoro
 
+import com.tl2333.novelvoicereader.narration.SpeechLanguage
+
 enum class VoiceGender { FEMALE, MALE }
 
 data class KokoroVoice(
@@ -7,6 +9,7 @@ data class KokoroVoice(
     val internalName: String,
     val displayName: String,
     val gender: VoiceGender,
+    val supportedLanguages: Set<SpeechLanguage>,
 )
 
 object KokoroVoiceCatalog {
@@ -44,10 +47,12 @@ object KokoroVoiceCatalog {
 
     fun bySid(sid: Int): KokoroVoice? = voices.getOrNull(sid - DEFAULT_FEMALE_SID)?.takeIf { it.sid == sid }
     fun requireBySid(sid: Int): KokoroVoice = requireNotNull(bySid(sid)) { "Unknown Chinese Kokoro voice sid: $sid" }
+    fun voicesFor(language: SpeechLanguage): List<KokoroVoice> = voices.filter { language in it.supportedLanguages }
+    fun supports(language: SpeechLanguage): Boolean = voices.any { language in it.supportedLanguages }
 
     private fun voice(sid: Int, name: String, gender: VoiceGender): KokoroVoice {
         val number = name.substringAfter('_').toInt().toString().padStart(2, '0')
         val label = if (gender == VoiceGender.FEMALE) "\u4e2d\u6587\u5973\u58f0" else "\u4e2d\u6587\u7537\u58f0"
-        return KokoroVoice(sid, name, "$label $number", gender)
+        return KokoroVoice(sid, name, "$label $number", gender, setOf(SpeechLanguage.ZH, SpeechLanguage.EN))
     }
 }

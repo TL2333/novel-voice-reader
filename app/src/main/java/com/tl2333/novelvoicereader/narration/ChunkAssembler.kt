@@ -2,7 +2,12 @@ package com.tl2333.novelvoicereader.narration
 
 import com.tl2333.novelvoicereader.filesystem.Sha256
 
-data class SegmentPcm(val segment: SpeechSegment, val sampleRate: Int, val samples: ShortArray) {
+data class SegmentPcm(
+    val segment: SpeechSegment,
+    val sampleRate: Int,
+    val samples: ShortArray,
+    val sourceFile: java.io.File? = null,
+) {
     init { require(sampleRate > 0 && samples.isNotEmpty()) }
 }
 

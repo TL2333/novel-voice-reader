@@ -5,8 +5,10 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
 import com.tl2333.novelvoicereader.content.docx.DocxImporter
-import com.tl2333.novelvoicereader.content.docx.LegacyDocImporter
-import com.tl2333.novelvoicereader.content.docx.LegacyDocUnsupportedException
+import com.tl2333.novelvoicereader.content.importing.DocumentContentKind
+import com.tl2333.novelvoicereader.content.importing.DocumentTypeDetector
+import com.tl2333.novelvoicereader.content.importing.ImportOrigin
+import com.tl2333.novelvoicereader.content.importing.ImportRequest
 import com.tl2333.novelvoicereader.content.model.CanonicalDocument
 import com.tl2333.novelvoicereader.content.model.CanonicalDocumentCodec
 import com.tl2333.novelvoicereader.content.model.SourceType
@@ -87,20 +89,15 @@ class AppContainer(
         narrationSessionFactory = { NarrationMediaServiceClient(it, readingProgress) },
     )
 
-    suspend fun importSafDocument(uri: Uri): LibraryActionResult {
-        runCatching {
-            application.contentResolver.takePersistableUriPermission(
-                uri,
-                Intent.FLAG_GRANT_READ_URI_PERMISSION,
-            )
-        }
-        val source = sourceInfo(uri)
-        return when (source.type) {
-            SourceType.EPUB -> importUri(uri)
-            SourceType.TXT, SourceType.PDF, SourceType.DOCX, SourceType.DOC -> importCanonicalUri(uri, source)
-            else -> LibraryActionResult(false, "暂不支持该文件格式：${source.displayName}")
-        }
+    suspend fun import(request: ImportRequest): LibraryActionResult = when (request.origin) {
+        ImportOrigin.WEB_URL -> importWebUrl(request.source)
+        ImportOrigin.LOCAL_URI, ImportOrigin.ACTION_VIEW, ImportOrigin.ACTION_SEND ->
+            importLocalDocument(Uri.parse(request.source), request.declaredMimeType)
     }
+
+    suspend fun importSafDocument(uri: Uri): LibraryActionResult = import(
+        ImportRequest(ImportOrigin.LOCAL_URI, uri.toString(), application.contentResolver.getType(uri)),
+    )
 
     suspend fun importBuiltInTestBook(): LibraryActionResult = withContext(Dispatchers.IO) {
         val stagingDirectory = File(application.cacheDir, "builtin-import").apply { mkdirs() }
@@ -267,28 +264,36 @@ class AppContainer(
         }
     }
 
-    private suspend fun importCanonicalUri(uri: Uri, source: SourceInfo): LibraryActionResult = withContext(Dispatchers.IO) {
+    private suspend fun importLocalDocument(uri: Uri, declaredMimeType: String?): LibraryActionResult = withContext(Dispatchers.IO) {
+        runCatching {
+            application.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        val metadata = sourceMetadata(uri, declaredMimeType)
         val stagingDirectory = File(application.cacheDir, "document-import").apply { mkdirs() }
-        val staged = File(stagingDirectory, ".${UUID.randomUUID()}.${source.extension}")
+        val staged = File(stagingDirectory, ".${UUID.randomUUID()}.part")
         try {
             application.contentResolver.openInputStream(uri)?.use { input ->
                 staged.outputStream().buffered(64 * 1024).use { output -> input.copyTo(output, 64 * 1024) }
             } ?: return@withContext LibraryActionResult(false, "无法读取所选文档。")
             if (staged.length() <= 0L) return@withContext LibraryActionResult(false, "所选文档为空。")
+            val kind = DocumentTypeDetector.detectLocal(staged, metadata.mediaType, metadata.displayName)
+            if (kind == DocumentContentKind.LEGACY_DOC) {
+                return@withContext LibraryActionResult(false, "检测到旧版二进制 .doc；请先转换为 DOCX、PDF 或 TXT 后再导入。")
+            }
+            val source = sourceInfo(kind, metadata.displayName)
+                ?: return@withContext LibraryActionResult(false, "无法从文件内容识别受支持的 EPUB、TXT、PDF 或 DOCX：${metadata.displayName}")
+            if (source.type == SourceType.EPUB) return@withContext importUri(Uri.fromFile(staged))
             val canonical = when (source.type) {
                 SourceType.TXT -> TxtImporter().import(staged, uri.toString(), source.displayName.substringBeforeLast('.'))
                 SourceType.DOCX -> DocxImporter().import(staged, uri.toString(), source.displayName.substringBeforeLast('.'))
-                SourceType.DOC -> LegacyDocImporter().import(staged)
                 SourceType.PDF -> PdfImporter().import(staged, uri.toString(), source.displayName.substringBeforeLast('.'))
                 else -> error("Unsupported canonical source ${source.type}")
             }
             saveCanonicalImport(staged, source, canonical)
-        } catch (error: LegacyDocUnsupportedException) {
-            LibraryActionResult(false, error.message.orEmpty())
         } catch (error: CancellationException) {
             throw error
         } catch (error: Exception) {
-            LibraryActionResult(false, "${source.type.name} 导入失败：${error.message.orEmpty()}")
+            LibraryActionResult(false, "文档导入失败：${error.message.orEmpty()}")
         } finally {
             staged.delete()
         }
@@ -421,24 +426,35 @@ class AppContainer(
         }
     }
 
-    private fun sourceInfo(uri: Uri): SourceInfo {
+    private fun sourceMetadata(uri: Uri, declaredMimeType: String?): SourceMetadata {
         var displayName: String? = null
-        application.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
-            if (cursor.moveToFirst()) displayName = cursor.getString(0)
+        runCatching {
+            application.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) displayName = cursor.getString(0)
+            }
         }
         val name = displayName ?: uri.lastPathSegment ?: "document"
-        val extension = name.substringAfterLast('.', "").lowercase()
-        val mediaType = application.contentResolver.getType(uri).orEmpty()
-        val type = when {
-            extension == "epub" || mediaType == "application/epub+zip" -> SourceType.EPUB
-            extension == "txt" || mediaType.startsWith("text/plain") -> SourceType.TXT
-            extension == "docx" || mediaType.contains("wordprocessingml") -> SourceType.DOCX
-            extension == "doc" || mediaType == "application/msword" -> SourceType.DOC
-            extension == "pdf" || mediaType == "application/pdf" -> SourceType.PDF
-            else -> SourceType.WEB
+        val mediaType = declaredMimeType.orEmpty().ifBlank {
+            runCatching { application.contentResolver.getType(uri) }.getOrNull().orEmpty()
         }
-        return SourceInfo(name, extension.ifBlank { type.name.lowercase() }, mediaType.ifBlank { "application/octet-stream" }, type)
+        return SourceMetadata(name, mediaType.ifBlank { "application/octet-stream" })
     }
+
+    private fun sourceInfo(kind: DocumentContentKind, displayName: String): SourceInfo? = when (kind) {
+        DocumentContentKind.EPUB -> SourceInfo(displayName.withExtension("epub"), "epub", "application/epub+zip", SourceType.EPUB)
+        DocumentContentKind.TXT -> SourceInfo(displayName.withExtension("txt"), "txt", "text/plain", SourceType.TXT)
+        DocumentContentKind.PDF -> SourceInfo(displayName.withExtension("pdf"), "pdf", "application/pdf", SourceType.PDF)
+        DocumentContentKind.DOCX -> SourceInfo(
+            displayName.withExtension("docx"),
+            "docx",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            SourceType.DOCX,
+        )
+        DocumentContentKind.HTML, DocumentContentKind.LEGACY_DOC, DocumentContentKind.UNSUPPORTED -> null
+    }
+
+    private fun String.withExtension(extension: String): String =
+        if (substringAfterLast('.', "").equals(extension, ignoreCase = true)) this else "$this.$extension"
 
     private fun moveAtomically(source: File, destination: File) {
         destination.parentFile?.mkdirs()
@@ -460,6 +476,8 @@ class AppContainer(
         val mediaType: String,
         val type: SourceType,
     )
+
+    private data class SourceMetadata(val displayName: String, val mediaType: String)
 
     private fun cleanupFailedImport(imported: PublicationManager.ImportedEpub) {
         if (publicationManager.isPrivateBook(imported.file)) imported.file.delete()

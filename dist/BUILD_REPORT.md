@@ -1,10 +1,10 @@
 # Novel Voice Reader Build Report
 
 - Status: BUILD_VERIFIED
-- Runtime status: DEVICE_RUNTIME_PENDING_USER_TEST
-- APK: C:\code\novel-voice-reader\dist\NovelVoiceReader-arm64-debug.apk
-- APK size: 249045495 bytes
-- APK SHA256: 86438ecd4c32070ac80c00c9827653e40dd3a4bda3885d8cadb7f138df364444
+- Runtime status: DEVICE_RUNTIME_PENDING (ADB available, no connected device)
+- APK: C:\code\novel-voice-reader\dist\NovelVoiceReader-arm64-debug-import-language-v3.apk
+- APK size: 263687255 bytes
+- APK SHA256: 9b74ffd7dee8d0cefb35ae495c635f7aff92b907b43f0a8201b7b29927472c68
 - applicationId: com.tl2333.novelvoicereader
 - versionName: 0.1.0
 - versionCode: 1
@@ -17,8 +17,8 @@
 - Kokoro model SHA256: bda15858163726a492d02a9a727bc263551b86ac77f90812c4b30ff41d380e26
 - Kokoro payload total: 215321602 bytes across 377 locked files
 - Generated model directory including manifest: 215384118 bytes
-- JVM unit tests: PASS (testDebugUnitTest)
-- Android Lint: PASS (lintDebug)
+- JVM unit tests: PASS (77 tests, 0 failures/errors/skips)
+- Android Lint: PASS (0 errors; 48 non-blocking warnings)
 - APK static verification: PASS
 - APK contents report: C:\code\novel-voice-reader\dist\APK_CONTENTS_REPORT.txt
 

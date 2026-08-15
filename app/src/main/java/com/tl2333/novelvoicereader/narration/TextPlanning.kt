@@ -5,6 +5,7 @@ import com.tl2333.novelvoicereader.content.model.CanonicalDocument
 import com.tl2333.novelvoicereader.filesystem.Sha256
 import com.tl2333.novelvoicereader.tts.tokenizer.ChineseSentenceTokenizer
 import com.tl2333.novelvoicereader.tts.tokenizer.ChineseTextNormalizer
+import com.tl2333.novelvoicereader.tts.tokenizer.EnglishSentenceTokenizer
 
 data class NarrationProfile(
     val semicolonPauseMs: Long = 130,
@@ -41,26 +42,51 @@ object PausePlanner {
 
 class SpeechPlanner(
     private val tokenizer: ChineseSentenceTokenizer = ChineseSentenceTokenizer(maxCharacters = 160),
+    private val englishTokenizer: EnglishSentenceTokenizer = EnglishSentenceTokenizer(maxCharacters = 160),
     private val profile: NarrationProfile = NarrationProfile(),
 ) {
     fun plan(document: CanonicalDocument): List<SpeechSegment> {
-        var order = 0
-        return document.blocks.flatMap { block ->
+        val candidates = document.blocks.flatMap { block ->
             val cleaned = TextCleaner.clean(block.text)
             if (cleaned.isBlank() || block.type == BlockType.PAGE_BREAK) return@flatMap emptyList()
-            tokenizer.tokenize(cleaned).map { token ->
-                val normalized = ChineseTextNormalizer.normalize(token.text)
-                SpeechSegment(
-                    id = Sha256.hash("${document.id}\u0000${block.id}\u0000${token.startOffset}\u0000$normalized"),
-                    documentId = document.id,
-                    sectionId = block.sectionId,
-                    blockId = block.id,
-                    order = order++,
-                    text = normalized,
-                    anchor = block.anchor.copy(charStart = token.startOffset, charEnd = token.endOffsetExclusive),
-                    plannedPauseMs = PausePlanner.pauseAfter(normalized, block.type, profile),
-                )
+            val tokens = if (LanguageDetector.detect(cleaned) == SpeechLanguage.EN) {
+                englishTokenizer.tokenize(cleaned)
+            } else {
+                tokenizer.tokenize(cleaned)
+            }
+            tokens.map { token ->
+                Candidate(block.id, block.sectionId, block.type, block.anchor, token.startOffset, token.endOffsetExclusive, token.text)
             }
         }
+        val languages = LanguageDetector.detectAll(candidates.map(Candidate::text))
+        return candidates.mapIndexed { order, candidate ->
+            val language = languages[order]
+            val normalized = when (language) {
+                SpeechLanguage.ZH -> ChineseTextNormalizer.normalize(candidate.text)
+                SpeechLanguage.EN -> EnglishTextNormalizer.normalize(candidate.text)
+                SpeechLanguage.JA -> TextCleaner.clean(candidate.text)
+            }
+            SpeechSegment(
+                id = Sha256.hash("${document.id}\u0000${candidate.blockId}\u0000${candidate.start}\u0000${language.tag}\u0000$normalized"),
+                documentId = document.id,
+                sectionId = candidate.sectionId,
+                blockId = candidate.blockId,
+                order = order,
+                text = normalized,
+                anchor = candidate.anchor.copy(charStart = candidate.start, charEnd = candidate.end),
+                plannedPauseMs = PausePlanner.pauseAfter(normalized, candidate.blockType, profile),
+                language = language,
+            )
+        }
     }
+
+    private data class Candidate(
+        val blockId: String,
+        val sectionId: String,
+        val blockType: BlockType,
+        val anchor: com.tl2333.novelvoicereader.content.model.DocumentLocation,
+        val start: Int,
+        val end: Int,
+        val text: String,
+    )
 }

@@ -15,6 +15,10 @@ import com.tl2333.novelvoicereader.tts.cache.WavInfo
 import com.tl2333.novelvoicereader.tts.cache.WavWriter
 import com.tl2333.novelvoicereader.tts.tokenizer.ChineseSentenceTokenizer
 import com.tl2333.novelvoicereader.tts.tokenizer.ChineseTextNormalizer
+import com.tl2333.novelvoicereader.tts.tokenizer.EnglishSentenceTokenizer
+import com.tl2333.novelvoicereader.narration.EnglishTextNormalizer
+import com.tl2333.novelvoicereader.narration.LanguageDetector
+import com.tl2333.novelvoicereader.narration.SpeechLanguage
 import com.tl2333.novelvoicereader.tts.tokenizer.NarrationStyle
 import com.tl2333.novelvoicereader.tts.tokenizer.NovelStylePlanner
 import java.io.File
@@ -49,6 +53,7 @@ enum class KokoroTtsErrorCode {
     SYNTHESIS_FAILED,
     AUDIO_PLAYBACK_FAILED,
     CANCELLED,
+    UNSUPPORTED_LANGUAGE,
 }
 
 enum class KokoroEngineState {
@@ -325,7 +330,22 @@ class KokoroTtsEngine internal constructor(
     }
 
     private fun processSpeak(work: Work.Speak) {
-        val spokenText = ChineseTextNormalizer.normalize(work.text)
+        val speechLanguage = SpeechLanguage.fromTag(work.language?.code) ?: LanguageDetector.detect(work.text)
+        if (speechLanguage == SpeechLanguage.JA) {
+            notifyError(
+                work.requestId,
+                KokoroTtsError(
+                    KokoroTtsErrorCode.UNSUPPORTED_LANGUAGE,
+                    "The packaged Kokoro v1.1-zh model does not provide a verified Japanese voice.",
+                ),
+            )
+            return
+        }
+        val spokenText = when (speechLanguage) {
+            SpeechLanguage.ZH -> ChineseTextNormalizer.normalize(work.text)
+            SpeechLanguage.EN -> EnglishTextNormalizer.normalize(work.text)
+            SpeechLanguage.JA -> error("Handled above")
+        }
         if (spokenText.isBlank()) {
             notifyError(
                 work.requestId,
@@ -333,7 +353,7 @@ class KokoroTtsEngine internal constructor(
             )
             return
         }
-        val nativeSegments = splitForNative(spokenText)
+        val nativeSegments = splitForNative(spokenText, speechLanguage)
 
         val currentSettings = settings.value
         val stylePlan = stylePlan(
@@ -358,6 +378,9 @@ class KokoroTtsEngine internal constructor(
                     voiceSid = parameters.sid,
                     style = stylePlan.style,
                     tokenizerVersion = TOKENIZER_VERSION,
+                    languageTag = speechLanguage.tag,
+                    synthesisProfile = "${stylePlan.style.name.lowercase()}-silence-profile-v1",
+                    normalizerVersion = if (speechLanguage == SpeechLanguage.EN) EnglishTextNormalizer.VERSION else "chinese-v2",
                 ),
             )
         }
@@ -468,7 +491,7 @@ class KokoroTtsEngine internal constructor(
             )
             return
         }
-        val nativeSegments = splitForNative(spokenText)
+        val nativeSegments = splitForNative(spokenText, SpeechLanguage.ZH)
         val parameters = SynthesisParameters(
             sid = work.voiceSid,
             style = stylePlan.style,
@@ -624,10 +647,11 @@ class KokoroTtsEngine internal constructor(
         )
     }
 
-    private fun splitForNative(text: String): List<String> =
-        ChineseSentenceTokenizer(maxCharacters = MAX_NATIVE_CHARACTERS)
-            .tokenize(text)
-            .map { it.text }
+    private fun splitForNative(text: String, language: SpeechLanguage): List<String> = when (language) {
+        SpeechLanguage.EN -> EnglishSentenceTokenizer(maxCharacters = MAX_NATIVE_CHARACTERS).tokenize(text)
+        SpeechLanguage.ZH -> ChineseSentenceTokenizer(maxCharacters = MAX_NATIVE_CHARACTERS).tokenize(text)
+        SpeechLanguage.JA -> emptyList()
+    }.map { it.text }
 
     private fun emptyGeneratedAudioError() = KokoroTtsError(
         KokoroTtsErrorCode.EMPTY_GENERATED_AUDIO,

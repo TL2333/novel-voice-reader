@@ -10,6 +10,9 @@ data class TtsCacheKeyInput(
     val voiceSid: Int,
     val style: NarrationStyle,
     val tokenizerVersion: String,
+    val languageTag: String = "zh-Hans",
+    val synthesisProfile: String = "neutral-standard-v1",
+    val normalizerVersion: String = tokenizerVersion,
 )
 
 object TtsCacheKey {
@@ -19,6 +22,9 @@ object TtsCacheKey {
         require(input.normalizedText.isNotBlank())
         require(input.voiceSid >= 0)
         require(input.tokenizerVersion.isNotBlank())
+        require(input.languageTag.isNotBlank())
+        require(input.synthesisProfile.isNotBlank())
+        require(input.normalizerVersion.isNotBlank())
         val canonical = listOf(
             input.kokoroModelCommit.trim(),
             input.sherpaVersion.trim(),
@@ -26,6 +32,9 @@ object TtsCacheKey {
             input.voiceSid.toString(),
             input.style.name.lowercase(),
             input.tokenizerVersion.trim(),
+            input.languageTag.trim().lowercase(),
+            input.synthesisProfile.trim().lowercase(),
+            input.normalizerVersion.trim(),
         ).joinToString(separator = "\u0000")
         return Sha256.hash(canonical)
     }

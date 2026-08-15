@@ -24,6 +24,9 @@ class TtsCacheKeyTest {
         assertThat(TtsCacheKey.create(base.copy(voiceSid = 58))).isNotEqualTo(first)
         assertThat(TtsCacheKey.create(base.copy(style = NarrationStyle.SAD))).isNotEqualTo(first)
         assertThat(TtsCacheKey.create(base.copy(normalizedText = base.normalizedText + "！"))).isNotEqualTo(first)
+        assertThat(TtsCacheKey.create(base.copy(languageTag = "en-US"))).isNotEqualTo(first)
+        assertThat(TtsCacheKey.create(base.copy(synthesisProfile = "dialogue-v2"))).isNotEqualTo(first)
+        assertThat(TtsCacheKey.create(base.copy(normalizerVersion = "chinese-v3"))).isNotEqualTo(first)
     }
 
     @Test

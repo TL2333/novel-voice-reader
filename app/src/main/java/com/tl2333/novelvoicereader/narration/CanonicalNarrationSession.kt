@@ -18,7 +18,7 @@ import com.tl2333.novelvoicereader.tts.client.TtsProcessDiedException
 import com.tl2333.novelvoicereader.tts.kokoro.KokoroGenerationRequest
 import com.tl2333.novelvoicereader.tts.tokenizer.NarrationStyle
 import java.io.File
-import java.util.concurrent.atomic.AtomicLong
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -27,6 +27,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -45,17 +46,19 @@ class CanonicalNarrationSession(
     private val document: CanonicalDocument,
     private val voiceSid: Int,
     initialSpeed: Float,
+    private val japaneseBackend: JapaneseTtsBackend = UnsupportedJapaneseTtsBackend,
 ) : AutoCloseable {
     private val application = context.applicationContext
     private val player = ExoPlayer.Builder(application).build()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val segments = SpeechPlanner().plan(document)
     private val rtf = RtfTracker()
-    private val queueEpoch = AtomicLong(0)
+    private val epochGuard = SynthesisEpochGuard()
     private var generationJob: Job? = null
     private var backend: TtsInferenceClient? = null
     private val timelines = mutableListOf<List<ChunkTimelineEntry>>()
     private val chunkDurations = mutableListOf<Long>()
+    private val protectedCacheFiles = linkedSetOf<File>()
     private val trace = NarrationTrace(File(application.filesDir, "narration-traces"), document.id)
     private val cache = TtsAudioCache(
         File(application.cacheDir, "narration"),
@@ -105,8 +108,10 @@ class CanonicalNarrationSession(
             return
         }
         val startIndex = segmentIndex.coerceIn(0, segments.lastIndex)
-        val epoch = queueEpoch.incrementAndGet()
+        val epoch = epochGuard.begin()
         generationJob?.cancel()
+        protectedCacheFiles.forEach(cache::unprotect)
+        protectedCacheFiles.clear()
         player.clearMediaItems()
         timelines.clear()
         chunkDurations.clear()
@@ -118,17 +123,33 @@ class CanonicalNarrationSession(
                 var engine = backend ?: TtsInferenceClient.connect(application).also { backend = it }
                 var processRebindAttempted = false
                 val performanceProfile = DevicePerformanceProfileDetector.detect(application)
+                var runtimePlan = SynthesisRuntimePlanner.plan(
+                    performanceProfile.tier,
+                    Runtime.getRuntime().availableProcessors().coerceAtLeast(1),
+                    performanceProfile.recentRtf?.p95,
+                )
                 var next = startIndex
                 var playbackStarted = false
-                while (next < segments.size && epoch == queueEpoch.get()) {
+                while (next < segments.size && epochGuard.isCurrent(epoch)) {
+                    val currentAdaptivePlan = AdaptiveBufferPlanner.plan(
+                        performanceProfile.tier,
+                        controller.snapshot.playbackSpeed,
+                        rtf.statistics()?.p95 ?: performanceProfile.recentRtf?.p95,
+                    )
+                    if (playbackStarted) awaitGenerationCapacity(epoch, currentAdaptivePlan, runtimePlan)
                     controller.accept(NarrationEvent.SynthesisStarted(segments[next].id))
                     val parts = mutableListOf<SegmentPcm>()
                     var chunkMediaMs = 0L
-                    while (next < segments.size && parts.size < ChunkAssembler.MAX_SEGMENTS) {
+                    val chunkPolicy = if (next == startIndex) runtimePlan.firstChunk else runtimePlan.followingChunks
+                    while (
+                        next < segments.size &&
+                        epochGuard.isCurrent(epoch) &&
+                        parts.size < chunkPolicy.maxSegments
+                    ) {
                         val segment = segments[next]
                         trace.record(traceRecord(NarrationTraceEvent.SEGMENT_QUEUED, segmentId = segment.id, plannedPauseMs = segment.plannedPauseMs))
                         val pcm = try {
-                            synthesizeSegment(engine, segment)
+                            synthesizeSegment(engine, segment, epoch)
                         } catch (error: TtsProcessDiedException) {
                             trace.record(
                                 traceRecord(
@@ -142,21 +163,27 @@ class CanonicalNarrationSession(
                             engine.release()
                             backend = null
                             engine = TtsInferenceClient.connect(application).also { backend = it }
-                            synthesizeSegment(engine, segment)
+                            synthesizeSegment(engine, segment, epoch)
                         }
-                        parts += SegmentPcm(segment, pcm.sampleRate, pcm.samples)
+                        if (!epochGuard.isCurrent(epoch)) throw CancellationException("Stale synthesis epoch")
+                        parts += SegmentPcm(segment, pcm.sampleRate, pcm.samples, pcm.file)
                         chunkMediaMs += pcm.samples.size * 1_000L / pcm.sampleRate + segment.plannedPauseMs
                         next++
-                        if (parts.size >= ChunkAssembler.MIN_SEGMENTS && chunkMediaMs >= ChunkAssembler.TARGET_MIN_DURATION_MS) break
+                        if (parts.size >= chunkPolicy.minSegments && chunkMediaMs >= chunkPolicy.targetMinDurationMs) break
+                        if (chunkMediaMs >= chunkPolicy.targetMaxDurationMs) break
                     }
-                    val chunk = ChunkAssembler.assemble(parts)
-                    val chunkFile = chunkFile(chunk.id)
-                    if (!chunkFile.isFile) WavWriter.writeMonoPcm16(chunkFile, chunk.samples, chunk.sampleRate)
-                    controller.accept(NarrationEvent.SynthesisCompleted(parts.last().segment.id, chunk.durationMs))
+                    if (!epochGuard.isCurrent(epoch)) throw CancellationException("Stale synthesis epoch")
+                    val prepared = prepareChunk(parts)
+                    controller.accept(NarrationEvent.SynthesisCompleted(parts.last().segment.id, prepared.durationMs))
                     val index = withContext(Dispatchers.Main) {
-                        timelines += chunk.timeline
-                        chunkDurations += chunk.durationMs
-                        player.addMediaItem(MediaItem.fromUri(chunkFile.toURI().toString()))
+                        if (!epochGuard.isCurrent(epoch)) throw CancellationException("Stale synthesis epoch")
+                        timelines += prepared.timeline
+                        chunkDurations += prepared.durationMs
+                        if (prepared.directCacheFile) {
+                            cache.protect(prepared.file)
+                            protectedCacheFiles += prepared.file
+                        }
+                        player.addMediaItem(MediaItem.fromUri(prepared.file.toURI().toString()))
                         val addedIndex = player.mediaItemCount - 1
                         if (playbackStarted && player.playbackState == Player.STATE_ENDED) {
                             player.seekTo(addedIndex, 0)
@@ -167,10 +194,15 @@ class CanonicalNarrationSession(
                         }
                         addedIndex
                     }
-                    trace.record(traceRecord(NarrationTraceEvent.CHUNK_READY, segmentId = parts.first().segment.id, chunkId = chunk.id, audioDurationMs = chunk.durationMs, queueDepth = index + 1))
+                    trace.record(traceRecord(NarrationTraceEvent.CHUNK_READY, segmentId = parts.first().segment.id, chunkId = prepared.id, audioDurationMs = prepared.durationMs, queueDepth = index + 1))
                     val plan = AdaptiveBufferPlanner.plan(
                         performanceProfile.tier,
                         controller.snapshot.playbackSpeed,
+                        rtf.statistics()?.p95 ?: performanceProfile.recentRtf?.p95,
+                    )
+                    runtimePlan = SynthesisRuntimePlanner.plan(
+                        performanceProfile.tier,
+                        Runtime.getRuntime().availableProcessors().coerceAtLeast(1),
                         rtf.statistics()?.p95 ?: performanceProfile.recentRtf?.p95,
                     )
                     val remainingMediaMs = withContext(Dispatchers.Main) { remainingQueuedMediaMs() }
@@ -186,7 +218,7 @@ class CanonicalNarrationSession(
                         rtf = rtf.statistics(),
                         message = if (plan.aggressivePregeneration && wall < 60_000) "高速朗读预生成中" else "已准备 ${wall / 1_000} 秒",
                     )
-                    if (!playbackStarted && wall >= plan.warmStartWallMs) {
+                    if (!playbackStarted && (wall >= plan.warmStartWallMs || index == 0)) {
                         withContext(Dispatchers.Main) {
                             player.prepare()
                             controller.accept(NarrationEvent.PlaybackStarted)
@@ -196,7 +228,7 @@ class CanonicalNarrationSession(
                         playbackStarted = true
                     }
                 }
-                if (!playbackStarted && timelines.isNotEmpty() && epoch == queueEpoch.get()) {
+                if (!playbackStarted && timelines.isNotEmpty() && epochGuard.isCurrent(epoch)) {
                     withContext(Dispatchers.Main) {
                         player.prepare()
                         controller.accept(NarrationEvent.PlaybackStarted)
@@ -205,7 +237,7 @@ class CanonicalNarrationSession(
                     }
                 }
             } catch (error: TtsProcessDiedException) {
-                if (epoch == queueEpoch.get()) {
+                if (epochGuard.isCurrent(epoch)) {
                     backend?.release()
                     backend = null
                     withContext(Dispatchers.Main) {
@@ -215,7 +247,7 @@ class CanonicalNarrationSession(
                     }
                 }
             } catch (error: Throwable) {
-                if (epoch == queueEpoch.get()) {
+                if (epochGuard.isCurrent(epoch)) {
                     controller.accept(NarrationEvent.SynthesisFailed(error.message ?: error.javaClass.simpleName))
                     trace.record(traceRecord(NarrationTraceEvent.ERROR, errorCode = NarrationErrorCode.SYNTHESIS_FAILED.name))
                     publish(message = "朗读失败：${error.message.orEmpty()}")
@@ -254,7 +286,7 @@ class CanonicalNarrationSession(
     }
 
     fun stop() {
-        queueEpoch.incrementAndGet()
+        epochGuard.cancel()
         generationJob?.cancel()
         controller.send(NarrationIntent.Stop)
         trace.record(traceRecord(NarrationTraceEvent.SESSION_END))
@@ -265,11 +297,14 @@ class CanonicalNarrationSession(
         stop()
         scope.cancel()
         backend?.release()
+        protectedCacheFiles.forEach(cache::unprotect)
+        protectedCacheFiles.clear()
         player.release()
         controller.release()
     }
 
-    private fun synthesizeSegment(engine: TtsInferenceClient, segment: SpeechSegment): CachedPcm16Audio {
+    private fun synthesizeSegment(engine: TtsInferenceClient, segment: SpeechSegment, epoch: Long): CachedPcm16Audio {
+        if (segment.language == SpeechLanguage.JA) return japaneseBackend.synthesize(segment)
         val key = TtsCacheKey.create(
             TtsCacheKeyInput(
                 BuildConfig.KOKORO_COMMIT,
@@ -278,6 +313,13 @@ class CanonicalNarrationSession(
                 voiceSid,
                 NarrationStyle.NEUTRAL,
                 "canonical-v2",
+                languageTag = segment.language.tag,
+                synthesisProfile = "neutral-silence-0.2-standard-speed-v1",
+                normalizerVersion = when (segment.language) {
+                    SpeechLanguage.ZH -> "chinese-v2"
+                    SpeechLanguage.EN -> EnglishTextNormalizer.VERSION
+                    SpeechLanguage.JA -> "japanese-backend-v1"
+                },
             ),
         )
         cache.get(key)?.let {
@@ -287,6 +329,7 @@ class CanonicalNarrationSession(
         trace.record(traceRecord(NarrationTraceEvent.CACHE_MISS, segmentId = segment.id))
         trace.record(traceRecord(NarrationTraceEvent.SYNTHESIS_START, segmentId = segment.id))
         val generated = engine.generate(segment.text, KokoroGenerationRequest(0.2f, 1f, voiceSid))
+        if (!epochGuard.isCurrent(epoch)) throw CancellationException("Stale synthesis epoch")
         val audioDurationMs = generated.samples.size * 1_000L / generated.sampleRate
         rtf.record(generated.generationDurationMs, audioDurationMs)
         trace.record(
@@ -299,7 +342,50 @@ class CanonicalNarrationSession(
             ),
         )
         val file = cache.put(key, generated.samples, generated.sampleRate)
-        return requireNotNull(cache.get(key)).copy(file = file)
+        if (!epochGuard.isCurrent(epoch)) {
+            file.delete()
+            throw CancellationException("Stale synthesis epoch")
+        }
+        return CachedPcm16Audio(file, generated.samples, generated.sampleRate)
+    }
+
+    private fun prepareChunk(parts: List<SegmentPcm>): PreparedAudioChunk {
+        require(parts.isNotEmpty())
+        val direct = parts.singleOrNull()?.takeIf { it.sourceFile?.isFile == true }
+        if (direct != null) {
+            val duration = direct.samples.size * 1_000L / direct.sampleRate
+            return PreparedAudioChunk(
+                id = direct.segment.id,
+                file = requireNotNull(direct.sourceFile),
+                durationMs = duration,
+                timeline = listOf(ChunkTimelineEntry(direct.segment.id, 0, duration, direct.segment.anchor)),
+                directCacheFile = true,
+            )
+        }
+        val chunk = ChunkAssembler.assemble(parts)
+        val file = chunkFile(chunk.id)
+        if (!file.isFile) WavWriter.writeMonoPcm16(file, chunk.samples, chunk.sampleRate)
+        return PreparedAudioChunk(chunk.id, file, chunk.durationMs, chunk.timeline, false)
+    }
+
+    private suspend fun awaitGenerationCapacity(
+        epoch: Long,
+        adaptivePlan: AdaptiveBufferPlan,
+        runtimePlan: SynthesisRuntimePlan,
+    ) {
+        while (epochGuard.isCurrent(epoch)) {
+            val (wall, queuedAhead) = withContext(Dispatchers.Main) {
+                val mediaMs = remainingQueuedMediaMs()
+                val ahead = (player.mediaItemCount - player.currentMediaItemIndex.coerceAtLeast(0) - 1).coerceAtLeast(0)
+                AdaptiveBufferPlanner.bufferWallMs(mediaMs, controller.snapshot.playbackSpeed) to ahead
+            }
+            if (
+                wall < adaptivePlan.watermarks.highWallMs &&
+                queuedAhead < runtimePlan.maximumQueuedChunksAhead
+            ) return
+            delay(250)
+        }
+        throw CancellationException("Stale synthesis epoch")
     }
 
     private fun chunkFile(id: String): File = File(application.cacheDir, "narration-chunks/${document.id}/$id.wav").apply {
@@ -340,5 +426,13 @@ class CanonicalNarrationSession(
         chunkId = chunkId,
         plannedPauseMs = plannedPauseMs,
         errorCode = errorCode,
+    )
+
+    private data class PreparedAudioChunk(
+        val id: String,
+        val file: File,
+        val durationMs: Long,
+        val timeline: List<ChunkTimelineEntry>,
+        val directCacheFile: Boolean,
     )
 }

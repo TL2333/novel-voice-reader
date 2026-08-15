@@ -8,6 +8,13 @@ import org.junit.Test
 
 class AdaptiveBufferPlannerTest {
     @Test
+    fun warmStartTargetsFirstPlayableFiveToEightSeconds() {
+        assertThat(AdaptiveBufferPlanner.plan(DevicePerformanceTier.NORMAL_MEMORY, 1f, 0.5).warmStartWallMs).isEqualTo(5_000)
+        assertThat(AdaptiveBufferPlanner.plan(DevicePerformanceTier.NORMAL_MEMORY, 1.5f, 0.5).warmStartWallMs).isEqualTo(6_500)
+        assertThat(AdaptiveBufferPlanner.plan(DevicePerformanceTier.NORMAL_MEMORY, 2f, 0.5).warmStartWallMs).isEqualTo(8_000)
+    }
+
+    @Test
     fun highMemoryTargetsNinetyWallSecondsAtEverySupportedSpeed() {
         listOf(0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f).forEach { speed ->
             val plan = AdaptiveBufferPlanner.plan(DevicePerformanceTier.HIGH_MEMORY, speed, p95Rtf = 0.2)

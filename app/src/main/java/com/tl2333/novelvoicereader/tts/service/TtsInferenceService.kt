@@ -8,6 +8,8 @@ import com.k2fsa.sherpa.onnx.GenerationConfig
 import com.k2fsa.sherpa.onnx.OfflineTts
 import com.tl2333.novelvoicereader.tts.cache.WavWriter
 import com.tl2333.novelvoicereader.tts.kokoro.KokoroModelLocator
+import com.tl2333.novelvoicereader.narration.DevicePerformanceProfileDetector
+import com.tl2333.novelvoicereader.narration.SynthesisRuntimePlanner
 import java.io.File
 import java.io.IOException
 import java.nio.file.AtomicMoveNotSupportedException
@@ -94,7 +96,13 @@ class TtsInferenceService : Service() {
 
     private fun initializeEngine(): OfflineTts {
         val runtime = runBlocking { KokoroModelLocator(this@TtsInferenceService).prepareRuntimeData() }
-        return OfflineTts(assets, KokoroConfigFactory.create(runtime.espeakDataDirectory)).also {
+        val performance = DevicePerformanceProfileDetector.detect(this)
+        val runtimePlan = SynthesisRuntimePlanner.plan(
+            performance.tier,
+            Runtime.getRuntime().availableProcessors().coerceAtLeast(1),
+            performance.recentRtf?.p95,
+        )
+        return OfflineTts(assets, KokoroConfigFactory.create(runtime.espeakDataDirectory, runtimePlan.numThreads)).also {
             check(it.sampleRate() > 0 && it.numSpeakers() > 0)
             offlineTts = it
         }
